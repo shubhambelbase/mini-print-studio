@@ -82,13 +82,16 @@ class ImageProcessor:
         sharpen: float = 1.0,
         scale_mode: str = "fit",
         invert: bool = False,
-        auto_level: bool = True
+        auto_level: bool = True,
+        smooth: float = 0.7
     ) -> Image.Image:
         """
         Main pipeline: Resize -> Grayscale -> Auto-level -> Brightness -> Contrast
-        -> Sharpen -> Dither -> 1-bit output.
+        -> Sharpen -> Smooth (photos) -> Dither -> 1-bit output.
         Auto-level (histogram stretch) is applied by default so photos print with
         the same punch as the official iPrint app instead of looking washed out.
+        `smooth` applies a hair of Gaussian blur before error-diffusion dithering
+        (photos only) so the output doesn't read as harshly "sharpened".
         """
         # Ensure RGB/RGBA
         if image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info):
@@ -156,16 +159,28 @@ class ImageProcessor:
         if invert:
             grayscale = ImageOps.invert(grayscale)
 
+        # 6b. Photo smoothing (diffusion dithers only). Error diffusion
+        # amplifies high-frequency noise into a harsh, "over-sharpened" dot
+        # pattern; a hair of Gaussian blur removes that noise, and a gentle
+        # midtone lift keeps blacks from overwhelming the print. Threshold
+        # mode (text / QR / line art) is left untouched so it stays crisp.
+        dither_key = dither_mode.lower()
+        diffusion = dither_key in ("atkinson", "floyd-steinberg", "floyd", "stucki")
+        if diffusion:
+            radius = max(0.0, float(smooth if smooth is not None else 0.7))
+            if radius > 0:
+                grayscale = grayscale.filter(ImageFilter.GaussianBlur(radius))
+            grayscale = grayscale.point(lambda v: int(255 * ((v / 255.0) ** 0.92)))
+
         # 7. Dithering to 1-bit (B&W)
-        dither_mode = dither_mode.lower()
-        if dither_mode == "floyd-steinberg" or dither_mode == "floyd":
+        if dither_key == "floyd-steinberg" or dither_key == "floyd":
             # Pillow built-in high quality Floyd-Steinberg error diffusion
             bw_img = grayscale.convert("1", dither=Image.Dither.FLOYDSTEINBERG)
-        elif dither_mode == "atkinson":
+        elif dither_key == "atkinson":
             bw_img = cls._apply_atkinson_dithering(grayscale)
-        elif dither_mode == "stucki":
+        elif dither_key == "stucki":
             bw_img = cls._apply_stucki_dithering(grayscale)
-        elif dither_mode == "bayer" or dither_mode == "ordered":
+        elif dither_key == "bayer" or dither_key == "ordered":
             bw_img = cls._apply_bayer_dithering(grayscale)
         else:
             # Simple threshold cutoff

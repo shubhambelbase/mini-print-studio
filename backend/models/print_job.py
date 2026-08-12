@@ -28,6 +28,7 @@ class ContentBlock(BaseModel):
     sharpen: Optional[float] = 1.0
     scale_mode: Optional[str] = Field("fit", description="fit, crop, original")
     auto_level: Optional[bool] = Field(True, description="Smart histogram stretch (only when the image is washed out)")
+    smooth: Optional[float] = Field(0.7, description="Pre-dither Gaussian blur radius for photos (0 = off)")
     
     # QR Code attributes
     qr_payload: Optional[str] = None
@@ -76,6 +77,8 @@ class ImageProcessRequest(BaseModel):
     sharpen: float = 1.0
     invert: bool = False
     scale_mode: str = "fit"
+    auto_level: bool = True
+    smooth: float = 0.7
 
 
 class PrintJobRecord(BaseModel):

@@ -176,5 +176,36 @@ class TestSmartAutoLevel(unittest.TestCase):
         self.assertTrue(0 in colors and (1 in colors or 255 in colors))
 
 
+class TestPhotoSmoothing(unittest.TestCase):
+
+    def test_smoothing_changes_diffusion_output(self):
+        # Blur+lift before error diffusion must alter the dither pattern
+        # (softer look) for photo dither modes.
+        import random
+        rnd = random.Random(11)
+        img = Image.new("L", (200, 200))
+        px = img.load()
+        for y in range(200):
+            for x in range(200):
+                base = 60 + (x * 140) // 200 + (y * 40) // 200
+                px[x, y] = max(0, min(255, base + rnd.randint(-18, 18)))
+        sharp = ImageProcessor.process_image(img.convert("RGB"), dither_mode="atkinson", auto_level=False, smooth=0.0)
+        soft = ImageProcessor.process_image(img.convert("RGB"), dither_mode="atkinson", auto_level=False, smooth=1.2)
+        self.assertNotEqual(ImageProcessor.to_raster_bytes(sharp),
+                            ImageProcessor.to_raster_bytes(soft))
+
+    def test_smoothing_never_touches_threshold_mode(self):
+        # Text/QR/line-art must stay crisp regardless of the smooth setting.
+        img = Image.new("L", (200, 200))
+        px = img.load()
+        for y in range(200):
+            for x in range(200):
+                px[x, y] = 60 + (x * 140) // 200
+        a = ImageProcessor.process_image(img.convert("RGB"), dither_mode="threshold", auto_level=False, smooth=0.0)
+        b = ImageProcessor.process_image(img.convert("RGB"), dither_mode="threshold", auto_level=False, smooth=1.5)
+        self.assertEqual(ImageProcessor.to_raster_bytes(a),
+                         ImageProcessor.to_raster_bytes(b))
+
+
 if __name__ == "__main__":
     unittest.main()

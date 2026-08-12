@@ -254,7 +254,8 @@ class PrintEngine:
                 sharpen=block.sharpen or 1.0,
                 scale_mode=block.scale_mode or "fit",
                 invert=block.invert or False,
-                auto_level=block.auto_level if block.auto_level is not None else True
+                auto_level=block.auto_level if block.auto_level is not None else True,
+                smooth=block.smooth if block.smooth is not None else 0.7
             )
             setattr(processed_img, "align", block.align or "center")
             return processed_img

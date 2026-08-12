@@ -195,7 +195,8 @@ window.EditorManager = {
         sharpen: initialValues.sharpen || 1.0,
         align: initialValues.align || "center",
         invert: initialValues.invert || false,
-        auto_level: initialValues.auto_level !== undefined ? initialValues.auto_level : true
+        auto_level: initialValues.auto_level !== undefined ? initialValues.auto_level : true,
+        smooth: initialValues.smooth !== undefined ? initialValues.smooth : 0.7
       };
     } else if (type === "qr") {
       block = {
@@ -466,6 +467,10 @@ window.EditorManager = {
               <label>Sharpen: <span class="range-readout" id="readout-${block.id}-sharpen">${block.sharpen}</span></label>
               <input type="range" min="1.0" max="3.0" step="0.2" value="${block.sharpen}" oninput="EditorManager.updateBlock('${block.id}', 'sharpen', parseFloat(this.value))">
             </div>
+            <div class="form-group">
+              <label>Smoothing (photos): <span class="range-readout" id="readout-${block.id}-smooth">${block.smooth}</span></label>
+              <input type="range" min="0" max="2" step="0.1" value="${block.smooth}" oninput="EditorManager.updateBlock('${block.id}', 'smooth', parseFloat(this.value))" title="Blurs a little before dithering so photos don't look over-sharpened. 0 = off, 0.7 = default, higher = softer.">
+            </div>
           </div>
           <div class="toggle-group">
             <label class="toggle-checkbox"><input type="checkbox" ${block.invert ? 'checked' : ''} onchange="EditorManager.updateBlock('${block.id}', 'invert', this.checked)"> Invert Colors</label>
@@ -594,7 +599,7 @@ window.EditorManager = {
       block[key] = value;
       // Update the live readout in place so the slider the user is dragging
       // is never destroyed/recreated mid-drag.
-      const rangeKeys = ["brightness", "contrast", "sharpen", "space_height", "line_spacing", "letter_spacing"];
+      const rangeKeys = ["brightness", "contrast", "sharpen", "space_height", "line_spacing", "letter_spacing", "smooth"];
       if (rangeKeys.includes(key)) {
         const readout = document.getElementById(`readout-${id}-${key}`);
         if (readout) readout.textContent = value;

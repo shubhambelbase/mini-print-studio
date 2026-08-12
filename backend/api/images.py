@@ -22,7 +22,9 @@ async def process_image_preview(req: ImageProcessRequest):
             contrast=req.contrast,
             sharpen=req.sharpen,
             scale_mode=req.scale_mode,
-            invert=req.invert
+            invert=req.invert,
+            auto_level=req.auto_level,
+            smooth=req.smooth
         )
 
         b64_url = ImageProcessor.to_base64_png(processed_img)
