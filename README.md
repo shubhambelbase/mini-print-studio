@@ -1,5 +1,9 @@
 # Mini Print Studio
 
+<p align="center">
+  <img src="banner.png" alt="Mini Print Studio" width="225">
+</p>
+
 [![CI](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml)
 
 Local-first web application for controlling a Bluetooth mini thermal printer from a desktop browser. No cloud services, no database — a FastAPI backend that talks to the printer, and a vanilla-JS frontend for designing, previewing, and printing content.
