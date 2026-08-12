@@ -1,4 +1,4 @@
-"""
+﻿"""
 BLE traffic decoder for the official iPrint Android app.
 
 Purpose: capture what the Android app ACTUALLY writes to the thermal printer
@@ -6,7 +6,7 @@ over GATT, so we can match its image pipeline exactly (row width, opcodes,
 energy values, 1-bit vs grayscale).
 
 Input:  Android "Bluetooth HCI snoop log" (btsnoop_hci.log), which is the
-        btsnoop binary format. Wireshark can also save these as pcap — pass
+        btsnoop binary format. Wireshark can also save these as pcap -- pass
         that file instead if preferred.
 
 Usage:
@@ -19,6 +19,7 @@ Output: the full byte stream the app wrote to the printer, plus a decoded
 
 import os
 import sys
+import time
 import struct
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -140,6 +141,84 @@ def analyze_stream(stream: bytes):
     return summary
 
 
+def watch(path: str, poll: float = 0.4):
+    """
+    LIVE mode: tails the btsnoop file and decodes packets as they arrive.
+    Start it, then print with the iPrint app -- decoded GATT writes appear
+    on screen immediately (opcode, row length, energy, CRC status).
+    """
+    from backend.protocols.iprint import IPrintProtocol
+
+    print(f"Watching {path} ... print with the iPrint app now (Ctrl+C to stop)")
+    seen_writes = 0
+    printed_offset = 0
+    stream = bytearray()
+
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        acl_bufs = {}
+        while True:
+            header = f.read(24)
+            if len(header) < 24:
+                time.sleep(poll)
+                continue
+            orig_len, incl_len, flags, drops, ts = struct.unpack(">IIIIq", header)
+            data = f.read(incl_len)
+            if len(data) < incl_len:
+                break
+            if not data or data[0] != H4_ACL:
+                continue
+            acl = data[1:]
+            if len(acl) < 4:
+                continue
+            hf, acl_len = struct.unpack_from("<HH", acl, 0)
+            handle = hf & 0x0FFF
+            fbits = (hf >> 12) & 0x0F
+            body = acl[4:4 + acl_len]
+            if (fbits & 0x01) == 0:
+                if len(body) >= 4:
+                    l2_len, cid = struct.unpack_from("<HH", body, 0)
+                    acl_bufs[handle] = {"cid": cid, "need": l2_len, "buf": bytearray(body[4:])}
+            else:
+                b = acl_bufs.get(handle)
+                if b is not None:
+                    b["buf"] += body
+            # Emit any complete L2CAP PDUs currently in the buffers.
+            writes_now = []
+            for h, b in list(acl_bufs.items()):
+                if len(b["buf"]) >= b["need"]:
+                    pdu = bytes(b["buf"][: b["need"]])
+                    del acl_bufs[h]
+                    if b["cid"] == L2CAP_CID_ATT and len(pdu) >= 3:
+                        opcode = pdu[0]
+                        if opcode in (ATT_WRITE_CMD, ATT_WRITE_REQ):
+                            handle_att = struct.unpack_from("<H", pdu, 1)[0]
+                            writes_now.append((opcode, handle_att, pdu[3:]))
+            if len(writes_now) > seen_writes:
+                new_values = b"".join(v for _, _, v in writes_now[seen_writes:])
+                seen_writes = len(writes_now)
+                stream += new_values
+                packets = IPrintProtocol.parse_stream(bytes(stream))
+                for p in packets:
+                    if p["offset"] < printed_offset:
+                        continue
+                    if p["opcode"] is None:
+                        print(f"  [garbage/unknown {p.get('payload_hex','')[:40]}...]")
+                        continue
+                    printed_offset = p["offset"] + 8 + (p.get("length") or 0)
+                    op = p["opcode"]
+                    name = p["opcode_name"]
+                    crc = "" if p.get("crc_ok") is None else ("CRC-OK" if p["crc_ok"] else "CRC-FAIL!")
+                    if op == 0xA2:
+                        print(f"  -> {name}: {p['length']} bytes/row  {crc}")
+                    elif op == 0xAF:
+                        raw = bytes.fromhex(p["payload_hex"])
+                        energy = raw[0] | (raw[1] << 8) if len(raw) >= 2 else "?"
+                        print(f"  -> {name}: energy={energy}  {crc}")
+                    else:
+                        print(f"  -> {name}  {crc}  [{p.get('payload_hex','')[:32]}]")
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -147,6 +226,13 @@ def main():
 
     if sys.argv[1] == "--selftest":
         selftest()
+        return
+
+    if sys.argv[1] == "--watch":
+        if len(sys.argv) < 3:
+            print("usage: python tools/analyze_btsnoop.py --watch <btsnoop_hci.log>")
+            sys.exit(1)
+        watch(sys.argv[2])
         return
 
     path = sys.argv[1]
@@ -168,14 +254,14 @@ def main():
     print("\n=== DECODED SUMMARY ===")
     print(f"Total bytes written:   {s['total_bytes']}")
     print(f"iPrint packets:        {s['iprint_packets']}")
-    print(f"Non-iPrint bytes:      {s['garbage_bytes']}  {'⚠  THE APP USES A DIFFERENT STREAM!' if s['not_iprint'] else ''}")
+    print(f"Non-iPrint bytes:      {s['garbage_bytes']}  {'[!]  THE APP USES A DIFFERENT STREAM!' if s['not_iprint'] else ''}")
     for op, n in sorted(s["opcodes"].items()):
         print(f"  {op:<32} {n}")
     if s["a2_row_count"]:
         print(f"Draw Bitmap rows:      {s['a2_row_count']}  (row byte-lengths: {sorted(s['a2_row_lengths'])})")
         expected = 48
         if s["a2_row_lengths"] and sorted(s["a2_row_lengths"])[-1] != expected:
-            print(f"⚠  ROWS ARE NOT {expected} BYTES — the app uses a different raster format!")
+            print(f"[!]  ROWS ARE NOT {expected} BYTES -- the app uses a different raster format!")
     if s["af_energies"]:
         print(f"Set Energy values:     {s['af_energies']}")
 
@@ -221,7 +307,7 @@ def selftest():
     assert s["a2_row_count"] == 40, f"expected 40 rows, got {s['a2_row_count']}"
     assert s["a2_row_lengths"] == {48}, s["a2_row_lengths"]
     assert s["af_energies"] == [17520], s["af_energies"]  # 0x70 0x44 = known-good baseline
-    print("SELFTEST PASSED — decoder round-trips a full iPrint job exactly.")
+    print("SELFTEST PASSED -- decoder round-trips a full iPrint job exactly.")
     print(f"Rows={s['a2_row_count']} x 48B, energy={s['af_energies']}")
     os.remove("selftest_btsnoop.bin")
 
