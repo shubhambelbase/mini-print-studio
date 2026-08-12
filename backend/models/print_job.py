@@ -70,6 +70,9 @@ class PrintRequest(BaseModel):
     feed_lines: Optional[int] = 3
     cut_paper: Optional[bool] = False
     copies: Optional[int] = Field(1, ge=1, le=99, description="Number of copies to print")
+    gray_print: Optional[bool] = Field(
+        False, description="iPrint true 16-level grayscale mode (official app's 0xBE [0,1] + 0xCF LZO chunks)"
+    )
     raw_payload: Optional[bytes] = Field(
         None, description="Pre-built protocol bytes; skips block rendering when set (internal use)"
     )

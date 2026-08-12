@@ -619,6 +619,116 @@ class ImageProcessor:
             "variants": variants,
         }
 
+    # ── True grayscale pipeline (iPrint app's 16-level mode) ────────────
+    # The SC03h firmware supports REAL grayscale printing (per-dot heat
+    # levels). The official app activates it with 0xBE [0x00, 0x01] and sends
+    # 16-level rows: 2 pixels per byte, 4 bits each, burn level 0..15 where
+    # 15 = white (no heat) and 0 = black (full heat), FIRST pixel in the LOW
+    # nibble. This pipeline replicates the app's image math exactly.
+
+    @classmethod
+    def process_gray(cls, image: Image.Image, target_width_px: int = 384,
+                     gray_scale: float = 0.9, level: int = 16,
+                     low_threshold: float = 0.2, high_threshold: float = 0.2,
+                     threshold_scale: float = 0.46,
+                     gray_low_value: int = 110, gray_high_value: int = 150) -> bytes:
+        """
+        Converts an image to the app's grayscale print data:
+        resize → grayscale → 20%-clip tone curve → ×gray_scale →
+        gray-level Floyd–Steinberg diffusion → 4-bit packing (2 px/byte).
+        Returns the raw row data (192 bytes per 384-dot row, no headers).
+        """
+        canvas = cls._prepare_canvas(image, target_width_px, "fit")
+        gray = canvas.convert("L")
+        w, h = gray.size
+        pix = list(gray.getdata())
+
+        # Tone curve from the app (convertGreyImgByFloydPixels):
+        # percentile clip at `low_threshold`/`high_threshold` (20% default —
+        # far gentler than the 1% used for 1-bit prints), bounded by the
+        # gray_low/gray_high values.
+        hist = [0] * 256
+        for v in pix:
+            hist[v] += 1
+        total = w * h
+        low = 0
+        acc = 0
+        for i in range(256):
+            acc += hist[i]
+            if acc > total * low_threshold:
+                low = i
+                break
+        high = 255
+        acc = 0
+        for i in range(255, -1, -1):
+            acc += hist[i]
+            if acc > total * high_threshold:
+                high = i
+                break
+        low = min(low, gray_low_value)
+        high = max(high, gray_high_value)
+
+        # map pixel: dark side scaled by threshold_scale, light side pulled
+        # toward white, middle linearly interpolated, then × gray_scale.
+        mapped = []
+        for v in pix:
+            if v <= low:
+                out_v = v * threshold_scale
+            elif v >= high:
+                out_v = v + (255 - v) * (1.0 - threshold_scale)
+            else:
+                f_lo = low * threshold_scale
+                f_hi = high + (255 - high) * (1.0 - threshold_scale)
+                out_v = ((v - low) * (f_hi - f_lo) / (high - low)) + f_lo
+            out_v *= gray_scale
+            out_v = 255 if out_v > 255 else (0 if out_v < 0 else int(out_v))
+            mapped.append(out_v)
+
+        # Gray-level Floyd–Steinberg error diffusion to `level` steps.
+        diffused = cls._diffuse_gray_levels(mapped, w, h, level)
+
+        # 4-bit packing: first pixel in the low nibble; nibble = 15 - level.
+        out = bytearray()
+        for y in range(h):
+            for x in range(0, w, 2):
+                p0 = diffused[y * w + x]
+                p1 = diffused[y * w + x + 1] if x + 1 < w else 255
+                n0 = 15 - min(15, p0 // (256 // level))
+                n1 = 15 - min(15, p1 // (256 // level))
+                out.append((n1 << 4) | n0)
+        return bytes(out)
+
+    @classmethod
+    def _diffuse_gray_levels(cls, pixels: list, width: int, height: int, level: int) -> list:
+        """
+        Error diffusion between GRAY LEVELS (not black/white): each pixel is
+        quantized to one of `level` steps and the residual error is spread to
+        neighbours (7/16, 3/16, 5/16, 1/16) — this is what makes the app's
+        grayscale prints look smooth and natural instead of dithered.
+        """
+        step = 256 // level
+        quant = 256 // (level - 1)
+        buf = [float(v) for v in pixels]
+        for y in range(height):
+            for x in range(width):
+                i = y * width + x
+                v = buf[i]
+                q = (v // step) * quant
+                q = min(255, q)
+                buf[i] = q
+                err = v - q
+                if err == 0:
+                    continue
+                if x + 1 < width:
+                    buf[i + 1] += err * 7 / 16
+                if y + 1 < height:
+                    if x > 0:
+                        buf[i + width - 1] += err * 3 / 16
+                    buf[i + width] += err * 5 / 16
+                    if x + 1 < width:
+                        buf[i + width + 1] += err / 16
+        return [max(0, min(255, int(v))) for v in buf]
+
     # ── Output helpers ─────────────────────────────────────────────────
 
     @classmethod

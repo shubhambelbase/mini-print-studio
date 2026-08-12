@@ -314,6 +314,9 @@ window.EditorManager = {
     const copiesInput = document.getElementById("copiesInput");
     const copies = copiesInput ? Math.max(1, parseInt(copiesInput.value) || 1) : 1;
 
+    const grayToggle = document.getElementById("grayPrintToggle");
+    const gray = grayToggle ? grayToggle.checked : false;
+
     return {
       title,
       blocks: cleanBlocks,
@@ -321,7 +324,8 @@ window.EditorManager = {
       margin_px: marginPx,
       feed_lines: 3,
       cut_paper: false,
-      copies
+      copies,
+      gray_print: gray
     };
   },
 

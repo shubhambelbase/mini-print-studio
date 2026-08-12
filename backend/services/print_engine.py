@@ -25,10 +25,15 @@ class PrintEngine:
         cls,
         blocks: List[ContentBlock],
         target_width_px: int = 384,
-        margin_px: int = 8
+        margin_px: int = 8,
+        gray: bool = False
     ) -> Image.Image:
         """
-        Composites all content blocks into a single vertical 1-bit PIL Image.
+        Composites all content blocks into a single vertical image.
+        `gray=True` renders an 8-bit 'L' canvas (255 = white) instead of a
+        1-bit canvas, for the printer's true 16-level grayscale mode — image
+        blocks are NOT dithered in this path; the grayscale tone mapping
+        happens once for the whole page at protocol generation time.
         """
         printable_width = target_width_px - (2 * margin_px)
         if printable_width <= 0:
@@ -37,18 +42,18 @@ class PrintEngine:
         rendered_sub_images: List[Image.Image] = []
 
         for block in blocks:
-            sub_img = cls._render_block(block, printable_width)
+            sub_img = cls._render_block(block, printable_width, gray=gray)
             if sub_img:
                 rendered_sub_images.append(sub_img)
 
         if not rendered_sub_images:
             # Empty print - default 100px blank image
-            canvas = Image.new("1", (target_width_px, 100), 1) # 1 = White
+            canvas = Image.new("L" if gray else "1", (target_width_px, 100), 255 if gray else 1)
             return canvas
 
         # Calculate total height
         total_height = margin_px * 2 + sum(img.height for img in rendered_sub_images)
-        canvas = Image.new("1", (target_width_px, total_height), 1) # 1 = White
+        canvas = Image.new("L" if gray else "1", (target_width_px, total_height), 255 if gray else 1)
 
         # Paste blocks sequentially
         current_y = margin_px
@@ -69,13 +74,13 @@ class PrintEngine:
         return canvas
 
     @classmethod
-    def _render_block(cls, block: ContentBlock, max_width_px: int) -> Optional[Image.Image]:
+    def _render_block(cls, block: ContentBlock, max_width_px: int, gray: bool = False) -> Optional[Image.Image]:
         b_type = block.type.lower()
 
         if b_type == "text":
             return cls._render_text_block(block, max_width_px)
         elif b_type == "image":
-            return cls._render_image_block(block, max_width_px)
+            return cls._render_image_block(block, max_width_px, gray=gray)
         elif b_type == "qr":
             return cls._render_qr_block(block, max_width_px)
         elif b_type == "barcode":
@@ -240,25 +245,39 @@ class PrintEngine:
         return img
 
     @classmethod
-    def _render_image_block(cls, block: ContentBlock, max_width_px: int) -> Optional[Image.Image]:
+    def _render_image_block(cls, block: ContentBlock, max_width_px: int, gray: bool = False) -> Optional[Image.Image]:
         if not block.image_data:
             return None
         try:
             raw_img = ImageProcessor.load_image(block.image_data)
-            processed_img = ImageProcessor.process_image(
-                image=raw_img,
-                target_width_px=max_width_px,
-                dither_mode=block.dither_mode,
-                brightness=block.brightness,
-                contrast=block.contrast,
-                sharpen=block.sharpen,
-                scale_mode=block.scale_mode or "fit",
-                invert=block.invert or False,
-                auto_level=block.auto_level,
-                smooth=block.smooth,
-                processing_preset=block.processing_preset or "photo",
-                gamma=block.gamma
-            )
+            if gray:
+                # Grayscale job: skip dithering entirely — the page-level
+                # tone mapping + 16-level diffusion happen once at protocol
+                # time so photos keep their full tonal range.
+                processed_img = ImageProcessor.prepare_grayscale(
+                    image=raw_img,
+                    target_width_px=max_width_px,
+                    scale_mode=block.scale_mode or "fit",
+                    brightness=block.brightness,
+                    contrast=block.contrast,
+                    invert=block.invert or False,
+                    processing_preset="photo"
+                )["grayscale"].convert("L")
+            else:
+                processed_img = ImageProcessor.process_image(
+                    image=raw_img,
+                    target_width_px=max_width_px,
+                    dither_mode=block.dither_mode,
+                    brightness=block.brightness,
+                    contrast=block.contrast,
+                    sharpen=block.sharpen,
+                    scale_mode=block.scale_mode or "fit",
+                    invert=block.invert or False,
+                    auto_level=block.auto_level,
+                    smooth=block.smooth,
+                    processing_preset=block.processing_preset or "photo",
+                    gamma=block.gamma
+                )
             setattr(processed_img, "align", block.align or "center")
             return processed_img
         except Exception as e:
@@ -480,12 +499,17 @@ class PrintEngine:
         feed_lines: int = 3,
         cut_paper: bool = False,
         density: int = 8,
-        feed_dots: Optional[int] = None
+        feed_dots: Optional[int] = None,
+        gray: bool = False
     ) -> bytes:
         """
         Converts 1-bit thermal image into ESC/POS or TSPL protocol commands.
         feed_dots controls the iPrint trailing feed (tear-bar clearance) and
         defaults to the known-good 130 dots when not provided.
+        `gray=True` (iPrint only) activates the printer's TRUE 16-level
+        grayscale mode (the official app's 0xBE [0,1] + 0xCF LZO chunks),
+        with the app's gray energy formula for the SC03h:
+            energy = 4100 × (1 + 0.15 × (density − 4))
         """
         raster_data = ImageProcessor.to_raster_bytes(image)
         width_px, height_px = image.size
@@ -499,6 +523,11 @@ class PrintEngine:
             return bytes(cmd_buf)
         elif protocol.lower() == "iprint":
             from backend.protocols.iprint import IPrintProtocol
+            if gray:
+                # True 16-level grayscale (SC03h firmware): the app's math.
+                gray_rows = ImageProcessor.process_gray(image, target_width_px=width_px)
+                energy = int(4100 * (1 + 0.15 * (max(1, min(10, density)) - 4)))
+                return IPrintProtocol.build_gray_payload(gray_rows, energy=energy, speed=40)
             # Cat Printers usually need extra feed lines to clear the tear bar.
             # 130 dots is a good balance between clearing the bar and saving
             # paper; the value is user-configurable via printer settings.

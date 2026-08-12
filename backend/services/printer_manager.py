@@ -294,6 +294,7 @@ class PrinterManager:
             margin_px = print_req.margin_px if print_req.margin_px is not None else 8
 
             raw = print_req.raw_payload
+            gray = bool(print_req.gray_print)
             if raw:
                 # Pre-built payloads (e.g. density calibration) skip the
                 # block rendering stage entirely.
@@ -304,7 +305,8 @@ class PrinterManager:
                 rendered_image = PrintEngine.render_blocks_to_image(
                     blocks=print_req.blocks,
                     target_width_px=width_px,
-                    margin_px=margin_px
+                    margin_px=margin_px,
+                    gray=gray
                 )
                 job.width_px = rendered_image.width
                 job.height_px = rendered_image.height
@@ -341,7 +343,8 @@ class PrinterManager:
                     feed_lines=feed_lines,
                     cut_paper=False,
                     density=density,
-                    feed_dots=printer_cfg["tear_bar_feed_dots"]
+                    feed_dots=printer_cfg["tear_bar_feed_dots"],
+                    gray=gray
                 )
                 final_bytes = base_bytes
                 if print_req.cut_paper:
@@ -351,7 +354,8 @@ class PrinterManager:
                         feed_lines=feed_lines,
                         cut_paper=True,
                         density=density,
-                        feed_dots=printer_cfg["tear_bar_feed_dots"]
+                        feed_dots=printer_cfg["tear_bar_feed_dots"],
+                        gray=gray
                     )
 
             try:

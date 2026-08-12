@@ -43,6 +43,13 @@ class IPrintProtocol:
     CMD_DRAWING_MODE = 0xBE
     CMD_SET_ENERGY = 0xAF
     CMD_SET_QUALITY = 0xA4
+    CMD_GRAY_IMAGE_CHUNK = 0xCF  # LZO-compressed 16-level grayscale rows
+
+    # Drawing mode payloads (0xBE):
+    #   [0x00]           → 1-bit image mode (classic 0xA2 rows)
+    #   [0x00, 0x00]     → 8-level grayscale image mode
+    #   [0x00, 0x01]     → 16-level grayscale image mode (the official app)
+    DRAWING_MODE_GRAY16 = [0x00, 0x01]
 
     LATTICE_PRINT = [0xAA, 0x55, 0x17, 0x38, 0x44, 0x5F, 0x5F, 0x5F, 0x44, 0x38, 0x2C]
     LATTICE_FINISH = [0xAA, 0x55, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17]
@@ -148,6 +155,52 @@ class IPrintProtocol:
         packet.append(cls.crc8(bytes(data)))
         packet.append(0xFF)
         return bytes(packet)
+
+    @classmethod
+    def build_gray_payload(
+        cls,
+        gray_rows: bytes,
+        energy: int,
+        speed: int = 40,
+        rows_per_chunk: int = 20,
+        row_bytes: int = 192,
+        preheat_bytes: int = 3072
+    ) -> bytes:
+        """
+        Builds the official-app grayscale job sequence:
+           0xAF energy → 0xBE [0x00, 0x01] (16-level gray) → 0xBD speed
+           → zero preheat header → gray chunks (0xCF, MiniLZO-compressed,
+             20 rows each) separated by 0xBD speed packets.
+        `gray_rows` is the raw 4-bit packed row data (192 bytes/row), exactly
+        as produced by ImageProcessor.process_gray.
+        """
+        from backend.services.minilzo import compress as lzo_compress
+
+        out = bytearray()
+        out.extend(cls.format_message(cls.CMD_SET_ENERGY, cls.printer_short(energy)))
+        out.extend(cls.format_message(cls.CMD_DRAWING_MODE, cls.DRAWING_MODE_GRAY16))
+        speed_pkt = cls.format_message(cls.CMD_OTHER_FEED_PAPER, [speed])
+
+        chunk_rows = max(1, rows_per_chunk)
+        chunk_bytes = chunk_rows * row_bytes
+
+        # The app prefixes the data with `width * 16` zero bytes (preheat).
+        full = bytearray(preheat_bytes)
+        full.extend(gray_rows)
+
+        offset = 0
+        n = len(full)
+        first = True
+        while offset < n:
+            if not first:
+                out.extend(speed_pkt)
+            first = False
+            chunk = bytes(full[offset:offset + chunk_bytes])
+            offset += len(chunk)
+            compressed = lzo_compress(chunk)
+            payload = bytes(cls.printer_short(len(chunk))) + bytes(cls.printer_short(len(compressed))) + compressed
+            out.extend(cls.format_message(cls.CMD_GRAY_IMAGE_CHUNK, payload))
+        return bytes(out)
 
     @classmethod
     def split_into_segments(cls, payload: bytes, segment_size: int = 4096) -> list:
