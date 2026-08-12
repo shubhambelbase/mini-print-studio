@@ -1,5 +1,7 @@
 # Mini Print Studio
 
+[![CI](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml)
+
 Local-first web application for controlling a Bluetooth mini thermal printer from a desktop browser. No cloud services, no database — a FastAPI backend that talks to the printer, and a vanilla-JS frontend for designing, previewing, and printing content.
 
 **Primary target hardware:** SC03h "iPrint" thermal pocket printer (58 mm, 384 dots) and its clones (FC02, D1, GB01, GB02, WalkPrint, FunPrint).
@@ -75,23 +77,86 @@ Everything runs on `127.0.0.1`; no user content leaves the machine.
 
 ---
 
-## Getting Started
+## Installation Guide
 
-```bash
-# 1. Create a venv and install dependencies
+### 1. Requirements
+
+| Requirement | Version / Notes |
+| :--- | :--- |
+| Python | **3.10+** (tested with 3.10–3.12) |
+| OS | **Windows 10/11** (primary; BLE via Bleak + system Bluetooth, fonts from `C:/Windows/Fonts`) |
+| Linux | Works for the web app + ESC/POS; BLE needs `bluez` and `python3-dev` (see below) |
+| macOS | Web app + ESC/POS work; BLE support in Bleak is best-effort |
+| Printer | Any BLE thermal printer speaking the iPrint protocol (SC03h, FC02, D1, GB01/02, WalkPrint, FunPrint…) or a standard ESC/POS-over-BLE printer |
+
+### 2. Install
+
+**Windows (PowerShell):**
+
+```powershell
+# 1. Clone / download the project, then:
+cd mini-print-studio
+
+# 2. Create and activate a virtual environment
 python -m venv venv
-venv\Scripts\activate            # Windows
-pip install -r requirements.txt
+.\venv\Scripts\Activate.ps1
 
-# 2. Start the backend (serves the frontend too)
-python -m backend.main          # http://127.0.0.1:8000
+# 3. Install dependencies
+pip install -r requirements.txt
 ```
 
-Open <http://127.0.0.1:8000> in a browser.
+**macOS / Linux (bash):**
 
-> Optional: set `MPS_DATA_DIR` to relocate `settings.json`, `printers.json`, `history.json` (tests use this to isolate data).
+```bash
+cd mini-print-studio
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
-**Requirements:** Python 3.10+, Windows (fonts resolved from `C:/Windows/Fonts`; BLE via Bleak).
+# Linux only — BLE requires BlueZ + dev headers:
+sudo apt install bluez libbluetooth-dev python3-dev   # Debian/Ubuntu
+sudo systemctl enable --now bluetooth
+```
+
+### 3. Run the app
+
+```bash
+python -m backend.main
+```
+
+- The backend serves both the API and the web UI at **<http://127.0.0.1:8000>**
+- It binds to localhost only — nothing is exposed to the network
+- Optional: `MPS_DATA_DIR` relocates `settings.json`, `printers.json`, `history.json` (tests use this to isolate data)
+
+### 4. Connect your printer (first run)
+
+1. Power the printer **on** and put it near the computer (charge it first if it is low).
+2. Make sure the computer's **Bluetooth radio is on** (Settings → Bluetooth & devices).
+3. Open the app → **Devices** → **Scan BLE Printers**.
+4. Click your printer (name should contain `SC03h`, `iprint`, `gb01`, `walkprint`, etc.) → the connection popup walks through BLE link → service discovery → notify subscription → done.
+5. Run **Test Page** to verify density, alignment, and paper feed.
+
+> No OS-level pairing is required — the app connects directly over GATT. If Windows has previously paired the printer, remove it first (Settings → Bluetooth → remove device) to avoid interference.
+
+### 5. Verify the installation (optional)
+
+```bash
+python -m unittest discover -s tests -q
+```
+
+All 30 tests must pass (protocol packet/CRC, image pipeline, block rendering, templates, REST API).
+
+### 6. Installation troubleshooting
+
+| Symptom | Fix |
+| :--- | :--- |
+| `pip install` fails on `bleak` / `Pillow` | Upgrade pip (`python -m pip install --upgrade pip`), then retry |
+| Server won't start — "port 8000 in use" | Close the other server, or start on a different port: `python -m uvicorn backend.main:app --port 8001` |
+| Scan finds nothing | Bluetooth radio off → enable it; printer off/low battery → charge and power on; click Scan again |
+| Connect times out after 20 s | Printer too far away; radio interference; reboot the printer, then retry |
+| Linux: `Could not initialize Bluetooth` | Install BlueZ (`libbluetooth-dev`), restart the `bluetooth` service |
+| Fonts render as boxes | Windows fonts are used by default (`C:/Windows/Fonts`); on Linux install `ttf-mscorefonts` or `fonts-dejavu` |
+| Prints look faint / too dark | Settings → **Print Density** (energy scales from the 17500 baseline); **Tear-bar Feed** adjusts the trailing feed |
 
 ---
 
