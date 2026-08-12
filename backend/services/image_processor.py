@@ -729,6 +729,27 @@ class ImageProcessor:
                         buf[i + width + 1] += err / 16
         return [max(0, min(255, int(v))) for v in buf]
 
+    @classmethod
+    def gray_rows_to_image(cls, rows: bytes, width_px: int = 384) -> Image.Image:
+        """
+        Decodes packed 4-bit gray rows back into an 'L' image — the exact
+        16-level output the printer will burn (nibble 0 = black, 15 = white).
+        Used for the thermal preview so what you see equals what prints.
+        """
+        row_bytes = width_px // 2
+        if row_bytes <= 0 or len(rows) < row_bytes:
+            return Image.new("L", (width_px, 0), 255)
+        height = len(rows) // row_bytes
+        img = Image.new("L", (width_px, height), 255)
+        px = img.load()
+        for y in range(height):
+            base = y * row_bytes
+            for x in range(0, width_px, 2):
+                b = rows[base + x // 2]
+                px[x, y] = (15 - (b & 0x0F)) * 17
+                px[x + 1, y] = (15 - ((b >> 4) & 0x0F)) * 17
+        return img
+
     # ── Output helpers ─────────────────────────────────────────────────
 
     @classmethod

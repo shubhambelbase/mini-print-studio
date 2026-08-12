@@ -148,7 +148,10 @@ async def get_print_queue(manager: PrinterManager = Depends(get_printer_manager)
 @router.post("/preview", response_model=Dict[str, Any])
 async def generate_print_preview(print_req: PrintRequest):
     """
-    Renders layout blocks into a 1-bit thermal paper preview Image (base64 PNG) without hardware printing.
+    Renders layout blocks into a thermal paper preview Image (base64 PNG)
+    without hardware printing. With gray_print enabled the preview is the
+    smooth 16-level grayscale page the printer will actually burn — not the
+    1-bit dither.
     """
     if not print_req.blocks:
         raise HTTPException(status_code=400, detail="Preview request must contain at least one content block.")
@@ -159,15 +162,25 @@ async def generate_print_preview(print_req: PrintRequest):
     rendered_img = PrintEngine.render_blocks_to_image(
         blocks=print_req.blocks,
         target_width_px=width_px,
-        margin_px=margin_px
+        margin_px=margin_px,
+        gray=bool(print_req.gray_print)
     )
 
     preview_b64 = ImageProcessor.to_base64_png(rendered_img)
+    if print_req.gray_print:
+        # Show the exact 16-level diffused output the printer will burn,
+        # not the raw tone-mapped canvas (which looks flat before the
+        # page-level tone curve + gray-level error diffusion).
+        gray_rows = ImageProcessor.process_gray(rendered_img, target_width_px=width_px)
+        preview_b64 = ImageProcessor.to_base64_png(
+            ImageProcessor.gray_rows_to_image(gray_rows, width_px=width_px)
+        )
     return {
         "width_px": rendered_img.width,
         "height_px": rendered_img.height,
         "preview_url": preview_b64,
-        "paper_width_mm": 58 if width_px == 384 else 80
+        "paper_width_mm": 58 if width_px == 384 else 80,
+        "gray_print": bool(print_req.gray_print)
     }
 
 
@@ -185,7 +198,8 @@ async def export_print(print_req: PrintRequest, fmt: str = "png"):
     rendered_img = PrintEngine.render_blocks_to_image(
         blocks=print_req.blocks,
         target_width_px=width_px,
-        margin_px=margin_px
+        margin_px=margin_px,
+        gray=bool(print_req.gray_print)
     )
 
     fmt = fmt.lower()
