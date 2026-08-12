@@ -1,18 +1,5 @@
 # Mini Print Studio
 
-<p align="center">
-  <img src="banner.png" alt="Mini Print Studio — Bluetooth thermal printer web app" width="225">
-</p>
-
-[![CI](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-**Mini Print Studio** is a free, local-first web application for controlling **Bluetooth thermal printers** — including **iPrint SC03h**, GB01/GB02, WalkPrint, FunPrint and other 58 mm pocket printers, plus standard **ESC/POS** and **TSPL** receipt/label printers. Design your content in the browser, see a live 1-bit **thermal print preview**, and print over **Bluetooth Low Energy (BLE)** without any cloud service.
-
-Works fully offline on your machine: a **Python FastAPI** backend speaks the printer's **BLE protocol** and a clean vanilla-JS frontend gives you a **receipt designer** (item tables, totals), **QR codes**, **barcodes**, **CSV label batches**, dithering for photos, and a packet-level **debug inspector** with CRC validation.
-
-<!-- thermal printer bluetooth BLE 58mm receipt label ESC/POS TSPL iPrint SC03h pocket printer python fastapi websocket SSE print server barcode QR code photo dithering Atkinson Floyd-Steinberg Stucki Bayer auto-level 384 dots bittmap 1-bit local-first offline open-source -->
-
 Local-first web application for controlling a Bluetooth mini thermal printer from a desktop browser. No cloud services, no database — a FastAPI backend that talks to the printer, and a vanilla-JS frontend for designing, previewing, and printing content.
 
 **Primary target hardware:** SC03h "iPrint" thermal pocket printer (58 mm, 384 dots) and its clones (FC02, D1, GB01, GB02, WalkPrint, FunPrint).
@@ -45,6 +32,7 @@ Local-first web application for controlling a Bluetooth mini thermal printer fro
 - Settings: paper width, print resolution, margin, density, **tear-bar feed dots**
 
 ### Reliability (iPrint protocol)
+- **True 16-level grayscale printing** — the official app's photo mode (`0xBE [0,1]` + LZO-compressed `0xCF` chunks) with its exact tone curve and gray-level Floyd–Steinberg diffusion; per-dot heat energy (no dither dots)
 - 180-byte BLE chunking, 10 ms pacing (25 ms for > 20 KB jobs)
 - Packet-aligned 4 KB bursts with 600 ms drain pauses for long jobs
 - CRC-8 (poly 0x07) validated per packet; wrong-width rows center-cropped
@@ -253,12 +241,3 @@ python -m unittest discover -s tests -q
 | Job aborts on disconnect | Hold the connection ≥ 3 s after the last write (server keeps it open) |
 
 See [Bluetooth_Incident_Report.md](Bluetooth_Incident_Report.md) for a real-world stale-socket incident and the fix that became the auto-reconnect + watchdog behavior.
-
----
-
-## Repository notes
-
-- Device addresses in the docs are sanitized placeholders (`AA:BB:CC:DD:EE:FF`) — configure your own printer's address.
-- `data/` is machine-local runtime storage (settings, history, saved documents) and is gitignored; the folder is kept in the repo with a `.gitkeep` so the app can create its files on first run.
-- The local checkout also contains a reference implementation of the protocol by the community (`data/gb01print`, credits: WerWolv & NaitLee) and ad-hoc hardware test scripts with a private printer address — these are intentionally not part of this public repository.
-
