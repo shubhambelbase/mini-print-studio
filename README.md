@@ -5,6 +5,7 @@
 </p>
 
 [![CI](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Local-first web application for controlling a Bluetooth mini thermal printer from a desktop browser. No cloud services, no database — a FastAPI backend that talks to the printer, and a vanilla-JS frontend for designing, previewing, and printing content.
 
