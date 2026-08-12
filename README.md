@@ -1,11 +1,17 @@
 # Mini Print Studio
 
 <p align="center">
-  <img src="banner.png" alt="Mini Print Studio" width="225">
+  <img src="banner.png" alt="Mini Print Studio — Bluetooth thermal printer web app" width="225">
 </p>
 
 [![CI](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhambelbase/mini-print-studio/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**Mini Print Studio** is a free, local-first web application for controlling **Bluetooth thermal printers** — including **iPrint SC03h**, GB01/GB02, WalkPrint, FunPrint and other 58 mm pocket printers, plus standard **ESC/POS** and **TSPL** receipt/label printers. Design your content in the browser, see a live 1-bit **thermal print preview**, and print over **Bluetooth Low Energy (BLE)** without any cloud service.
+
+Works fully offline on your machine: a **Python FastAPI** backend speaks the printer's **BLE protocol** and a clean vanilla-JS frontend gives you a **receipt designer** (item tables, totals), **QR codes**, **barcodes**, **CSV label batches**, dithering for photos, and a packet-level **debug inspector** with CRC validation.
+
+<!-- thermal printer bluetooth BLE 58mm receipt label ESC/POS TSPL iPrint SC03h pocket printer python fastapi websocket SSE print server barcode QR code photo dithering Atkinson Floyd-Steinberg Stucki Bayer auto-level 384 dots bittmap 1-bit local-first offline open-source -->
 
 Local-first web application for controlling a Bluetooth mini thermal printer from a desktop browser. No cloud services, no database — a FastAPI backend that talks to the printer, and a vanilla-JS frontend for designing, previewing, and printing content.
 
