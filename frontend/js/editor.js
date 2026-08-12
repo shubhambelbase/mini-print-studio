@@ -194,7 +194,8 @@ window.EditorManager = {
         contrast: initialValues.contrast || 1.0,
         sharpen: initialValues.sharpen || 1.0,
         align: initialValues.align || "center",
-        invert: initialValues.invert || false
+        invert: initialValues.invert || false,
+        auto_level: initialValues.auto_level !== undefined ? initialValues.auto_level : true
       };
     } else if (type === "qr") {
       block = {
@@ -468,6 +469,7 @@ window.EditorManager = {
           </div>
           <div class="toggle-group">
             <label class="toggle-checkbox"><input type="checkbox" ${block.invert ? 'checked' : ''} onchange="EditorManager.updateBlock('${block.id}', 'invert', this.checked)"> Invert Colors</label>
+            <label class="toggle-checkbox" title="Stretch contrast only when the image is washed out; disable for dark images that print too black."><input type="checkbox" ${block.auto_level !== false ? 'checked' : ''} onchange="EditorManager.updateBlock('${block.id}', 'auto_level', this.checked)"> Auto-Level (smart)</label>
           </div>
         `;
       }

@@ -27,6 +27,7 @@ class ContentBlock(BaseModel):
     contrast: Optional[float] = 1.0
     sharpen: Optional[float] = 1.0
     scale_mode: Optional[str] = Field("fit", description="fit, crop, original")
+    auto_level: Optional[bool] = Field(True, description="Smart histogram stretch (only when the image is washed out)")
     
     # QR Code attributes
     qr_payload: Optional[str] = None

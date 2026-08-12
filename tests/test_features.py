@@ -10,6 +10,7 @@ from backend.protocols.iprint import IPrintProtocol
 from backend.models.print_job import ContentBlock, PrintRequest
 from backend.models.settings import AppSettings
 from backend.services.print_engine import PrintEngine
+from backend.services.image_processor import ImageProcessor
 from backend.services.template_manager import TemplateManager
 from backend.services.printer_manager import PrinterManager
 from backend.adapters.ble import BLEPrinterAdapter
@@ -132,6 +133,47 @@ class TestEventStream(unittest.TestCase):
             await agen.aclose()
             self.assertEqual(len(pm._subscribers), 0)
         asyncio.run(run())
+
+
+class TestSmartAutoLevel(unittest.TestCase):
+
+    def _black_fraction(self, img):
+        total = img.width * img.height
+        black = sum(1 for v in img.getdata() if v == 0)
+        return black / total
+
+    def test_wide_range_image_not_crushed(self):
+        # Normal photo: histogram already spans most of the range. The old
+        # unconditional 1% clip stretch pushed shadows to solid black; the
+        # smart version must skip the stretch so output is identical to
+        # auto_level=False.
+        img = Image.new("L", (200, 200))
+        px = img.load()
+        for y in range(200):
+            for x in range(200):
+                px[x, y] = 40 + (x * 200) // 200
+        with_auto = ImageProcessor.process_image(img.convert("RGB"), dither_mode="threshold", auto_level=True)
+        without = ImageProcessor.process_image(img.convert("RGB"), dither_mode="threshold", auto_level=False)
+        self.assertEqual(ImageProcessor.to_raster_bytes(with_auto),
+                         ImageProcessor.to_raster_bytes(without))
+        self.assertLess(self._black_fraction(with_auto), 0.6)
+
+    def test_flat_image_still_stretched(self):
+        # Washed-out image (narrow histogram): the stretch must still fire
+        # and split the tones instead of printing as mud.
+        img = Image.new("L", (200, 200))
+        px = img.load()
+        for y in range(200):
+            for x in range(200):
+                px[x, y] = 115 + (x * 35) // 200  # narrow spread: 115..149
+        with_auto = ImageProcessor.process_image(img.convert("RGB"), dither_mode="threshold", auto_level=True)
+        without = ImageProcessor.process_image(img.convert("RGB"), dither_mode="threshold", auto_level=False)
+        self.assertNotEqual(ImageProcessor.to_raster_bytes(with_auto),
+                            ImageProcessor.to_raster_bytes(without))
+        # Stretched output must actually contain both black and white pixels
+        # (the flat image was recovered into full tonal range).
+        colors = set(with_auto.getdata())
+        self.assertTrue(0 in colors and (1 in colors or 255 in colors))
 
 
 if __name__ == "__main__":

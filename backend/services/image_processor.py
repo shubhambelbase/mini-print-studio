@@ -29,6 +29,33 @@ class ImageProcessor:
         [63, 31, 55, 23, 61, 29, 53, 21]
     ]
 
+    @staticmethod
+    def _histogram_percentile(hist: list, fraction: float) -> tuple:
+        """
+        Returns the (low, high) luminance values that bracket the given
+        cumulative fraction of pixels (e.g. 0.01 = the 1%-99% range).
+        Used to decide whether a histogram stretch is actually needed.
+        """
+        total = sum(hist)
+        if total <= 0:
+            return 0, 255
+        target = total * fraction
+        lo = 0
+        acc = 0
+        for v, count in enumerate(hist):
+            acc += count
+            if acc >= target:
+                lo = v
+                break
+        hi = 255
+        acc = 0
+        for v in range(255, -1, -1):
+            acc += hist[v]
+            if acc >= target:
+                hi = v
+                break
+        return lo, hi
+
     @classmethod
     def load_image(cls, image_source: str) -> Image.Image:
         """
@@ -98,10 +125,16 @@ class ImageProcessor:
         # 2. Grayscale conversion
         grayscale = image.convert("L")
 
-        # 2b. Auto-level: stretch the histogram (1% clip) so midtones get
-        # real contrast — the single biggest factor for iPrint-app-quality output.
+        # 2b. Auto-level: the doc's 1% clip histogram stretch is the reason
+        # photos print "punchy" like the iPrint app — but applied blindly it
+        # CRUSHES shadows to solid black (blackish prints) and amplifies
+        # grain (over-sharpened look). Only stretch when the image is
+        # genuinely flat/washed out; already-wide histograms keep their tone.
         if auto_level:
-            grayscale = ImageOps.autocontrast(grayscale, cutoff=1)
+            hist = grayscale.histogram()
+            lo, hi = cls._histogram_percentile(hist, 0.01)
+            if hi - lo < 170:  # < ~2/3 of the full range → flat image
+                grayscale = ImageOps.autocontrast(grayscale, cutoff=1)
 
         # 3. Brightness adjustment (neutral at 1.0)
         if brightness != 1.0:
