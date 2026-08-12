@@ -1,0 +1,29 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Runtime local data (machine-specific: MAC addresses, history, settings)
+data/printers.json
+data/settings.json
+data/history.json
+data/documents/
+data/templates/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Tooling / logs
+*.log
+.env
+*.tmp
+
+# Scratch files (never part of the public project)
+session.txt
+New Text Document.txt

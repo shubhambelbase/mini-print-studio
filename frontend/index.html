@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Print Studio — Thermal Printer Studio</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23171b21'/%3E%3Cpath d='M9 11h14v6H9zM11 9h10v2H11z' fill='none' stroke='%234f7df9' stroke-width='2'/%3E%3Cpath d='M9 20h14v3H9z' fill='%234f7df9'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon"><i data-lucide="printer"></i></div>
+        <span>Mini Print Studio</span>
+      </div>
+
+      <div class="header-status">
+        <div class="status-badge" id="headerStatusBadge">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="headerPrinterName">Disconnected</span>
+        </div>
+        <span class="header-battery" id="headerBattery" style="display: none;" title="Printer battery level">
+          <i data-lucide="battery-charging"></i>
+          <span id="headerBatteryLevel">--</span>%
+        </span>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn-secondary" id="btnDevicesModal" title="Device Manager">
+          <i data-lucide="bluetooth"></i> Devices
+        </button>
+        <button class="btn-secondary" id="btnThemeToggle" title="Toggle Theme">
+          <i data-lucide="sun"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Left Sidebar Navigation -->
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-label">Workspace</div>
+          <button class="btn-nav active" id="btnNewPrint">
+            <i data-lucide="plus-circle"></i> New Print
+          </button>
+          <button class="btn-nav" id="btnOpenBatch">
+            <i data-lucide="layers"></i> Batch Print
+          </button>
+          <button class="btn-nav" id="btnOpenTemplates">
+            <i data-lucide="layout"></i> Templates
+          </button>
+          <button class="btn-nav" id="btnOpenHistory">
+            <i data-lucide="history"></i> History
+          </button>
+          <button class="btn-nav" id="btnOpenSettings">
+            <i data-lucide="settings"></i> Settings
+          </button>
+        </div>
+
+        <div class="printer-card">
+          <div class="printer-info-title">Active Device</div>
+          <div class="printer-name" id="cardPrinterName">No Printer Connected</div>
+          <div class="printer-details">
+            <span id="cardPaperWidth">58 mm (384px)</span> •
+            <span id="cardProtocol">ESC/POS</span>
+            <span id="cardBattery" style="display: none;"> • Battery: <span id="batteryLevel">--</span>%</span>
+          </div>
+          <div class="printer-details" id="cardDeviceInfo" style="display: none;"></div>
+          <button class="btn-secondary" style="width: 100%; margin-top: 4px;" id="btnQuickConnect">
+            <i data-lucide="refresh-cw"></i> Switch Printer
+          </button>
+        </div>
+      </aside>
+
+      <!-- Center Column: Editor / Batch views -->
+      <div class="center-col">
+        <!-- Center Print Editor -->
+        <section class="editor-panel">
+        <div class="editor-header">
+          <input type="text" class="doc-title-input" id="docTitleInput" value="Untitled Print Note" placeholder="Document Title...">
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-icon" id="btnUndo" title="Undo (Ctrl+Z)" style="opacity: 0.4;" disabled>
+              <i data-lucide="undo-2"></i>
+            </button>
+            <button class="btn-icon" id="btnRedo" title="Redo (Ctrl+Y)" style="opacity: 0.4;" disabled>
+              <i data-lucide="redo-2"></i>
+            </button>
+            <button class="btn-secondary" id="btnAddToBatch" title="Add current document to the Batch list">
+              <i data-lucide="layers"></i> Add to Batch
+            </button>
+            <button class="btn-secondary" id="btnOpenDocuments" title="Open Saved Documents">
+              <i data-lucide="folder-open"></i> Open
+            </button>
+            <button class="btn-primary" id="btnSaveDocument" title="Save Document (Ctrl+S)">
+              <i data-lucide="save"></i> Save
+            </button>
+          </div>
+        </div>
+
+        <!-- Add Block Toolbar -->
+        <div class="add-block-toolbar">
+          <span class="toolbar-label">Add Content:</span>
+          <button class="btn-tool" id="btnAddText"><i data-lucide="type"></i> Text</button>
+          <button class="btn-tool" id="btnAddImage"><i data-lucide="image"></i> Image</button>
+          <button class="btn-tool" id="btnAddQr"><i data-lucide="qr-code"></i> QR</button>
+          <button class="btn-tool" id="btnAddBarcode"><i data-lucide="barcode"></i> Barcode</button>
+          <button class="btn-tool" id="btnAddLine"><i data-lucide="minus"></i> Line</button>
+          <button class="btn-tool" id="btnAddSpace"><i data-lucide="move-vertical"></i> Space</button>
+          <button class="btn-tool" id="btnAddTable" title="Add an item table (receipt designer)"><i data-lucide="table-2"></i> Table</button>
+          <button class="btn-tool" id="btnAddTotals" title="Add subtotal/total lines"><i data-lucide="receipt"></i> Totals</button>
+          <span class="toolbar-sep"></span>
+          <button class="btn-tool" id="btnWifiWizard" title="Wi-Fi QR wizard"><i data-lucide="wifi"></i> Wi-Fi</button>
+          <button class="btn-tool" id="btnContactWizard" title="Contact QR wizard"><i data-lucide="contact"></i> Contact</button>
+          <button class="btn-tool" id="btnCsvLabels" title="Generate barcode labels from CSV"><i data-lucide="file-spreadsheet"></i> CSV</button>
+          <button class="btn-tool" id="btnBatchPrint" title="Print multiple templates"><i data-lucide="layers"></i> Batch</button>
+          <button class="btn-tool" id="btnImportClipboard" title="Import text as blocks"><i data-lucide="clipboard-paste"></i> Paste</button>
+        </div>
+
+        <!-- Dynamic Block Canvas -->
+        <div class="blocks-canvas" id="blocksCanvas">
+          <div class="empty-canvas-notice">
+            <i data-lucide="file-text" style="width: 48px; height: 48px; stroke-width: 1.5;"></i>
+            <p>Your print layout is empty.</p>
+            <p style="font-size: 0.85rem;">Click the buttons above or select a template to add content blocks.</p>
+          </div>
+        </div>
+        </section>
+
+        <!-- Batch Print View -->
+        <section class="batch-view" id="batchView" style="display: none;">
+          <div class="batch-header">
+            <div class="batch-title">
+              <i data-lucide="layers"></i> BATCH BASKET
+            </div>
+            <span class="status-badge" id="batchQueueBadge">QUEUE: 0</span>
+          </div>
+
+          <div class="batch-hint">
+            Items added from the dashboard (New Print → Add to Batch) appear here. Add templates or documents with their + Batch button.
+          </div>
+
+          <div class="batch-template-list" id="batchTemplateList">
+            <div style="color: var(--text-muted); padding: 20px; text-align: center;">Batch basket is empty.</div>
+          </div>
+
+          <div class="batch-queue-status" id="batchQueueStatus">
+            <!-- Live queue info -->
+          </div>
+
+          <div class="batch-footer">
+            <div class="batch-footer-left">
+              <label for="batchCopies">Copies</label>
+              <input type="number" id="batchCopies" class="form-control" min="1" max="99" value="1" style="width: 56px;">
+              <span class="batch-selected-count" id="batchSelectedCount">0 items</span>
+              <span class="batch-total" id="batchTotalPrints"></span>
+              <button class="btn-secondary small" id="btnClearBatch" title="Remove all items from the batch">Clear</button>
+            </div>
+            <button class="btn-primary" id="btnSendBatchQueue">
+              <i data-lucide="send"></i> Send to Queue
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Thermal Paper Preview Panel -->
+      <section class="preview-panel">
+        <div class="preview-header">
+          <div class="preview-title">
+            <i data-lucide="eye"></i> Thermal Preview
+          </div>
+          <span class="status-badge" id="previewDimensionBadge">384 px | 58 mm</span>
+        </div>
+
+        <!-- Controls Bar -->
+        <div class="preview-controls-bar">
+          <div class="form-group" style="flex: 1;">
+            <label for="ditherSelect">Dithering Mode:</label>
+            <select class="form-control" id="ditherSelect">
+              <option value="atkinson" selected>Atkinson — best for photos & gradients (Recommended)</option>
+              <option value="floyd-steinberg">Floyd–Steinberg — smooth classic diffusion</option>
+              <option value="stucki">Stucki — richer blacks, smoother tones</option>
+              <option value="bayer">Bayer — for logos, icons, flat graphics</option>
+              <option value="threshold">Threshold — for text, QR codes, line art</option>
+            </select>
+            <span class="dither-hint" id="ditherHint"></span>
+          </div>
+          <div class="form-group compact">
+            <label for="copiesInput">Copies:</label>
+            <input type="number" class="form-control" id="copiesInput" min="1" max="99" value="1">
+          </div>
+          <div class="form-group compact zoom-group">
+            <label for="zoomRange">Zoom:</label>
+            <input type="range" id="zoomRange" min="0.6" max="1.4" step="0.1" value="1.0">
+          </div>
+        </div>
+
+        <!-- Paper Viewport Roll Simulator -->
+        <div class="paper-viewport">
+          <div class="thermal-paper" id="thermalPaperContainer">
+            <img id="paperImagePreview" class="paper-img-preview" src="" alt="Thermal Output Preview">
+          </div>
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <div class="preview-actions">
+          <button class="btn-secondary" id="btnExportPng" title="Download Rendered Output as PNG">
+            <i data-lucide="download"></i> Export
+          </button>
+          <button class="btn-secondary" id="btnTestPrint" title="Print Hardware Diagnostic Page">
+            <i data-lucide="zap"></i> Test Page
+          </button>
+          <button class="btn-secondary" id="btnCancelPrint" title="Cancel Current Print Job" style="display: none;">
+            <i data-lucide="x-circle"></i> Cancel
+          </button>
+          <button class="btn-primary" id="btnPrintNow">
+            <i data-lucide="printer"></i> PRINT NOW
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Templates Modal -->
+  <div class="modal-overlay" id="templatesModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="layout"></i> Select Print Template</div>
+        <button class="btn-icon" id="btnCloseTemplatesModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="templates-filter-bar" id="templatesFilterBar">
+          <!-- Category chips loaded dynamically via JavaScript -->
+        </div>
+        <div class="templates-grid" id="templatesGrid">
+          <!-- Loaded dynamically via JavaScript -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Documents Modal -->
+  <div class="modal-overlay" id="documentsModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="folder-open"></i> Saved Documents</div>
+        <button class="btn-icon" id="btnCloseDocumentsModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="history-list" id="documentsList">
+          <!-- Loaded dynamically via JavaScript -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div class="modal-overlay" id="historyModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="history"></i> Print History</div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-secondary" id="btnClearHistory" style="padding: 6px 12px; font-size: 0.8rem;">Clear All</button>
+          <button class="btn-icon" id="btnCloseHistoryModal"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="history-stats" id="historyStats"></div>
+        <div class="history-charts" id="historyCharts"></div>
+        <div class="history-list" id="historyList">
+          <!-- Loaded dynamically via JavaScript -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Devices & Connection Modal -->
+  <div class="modal-overlay" id="devicesModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="bluetooth"></i> Printer Device Manager</div>
+        <button class="btn-icon" id="btnCloseDevicesModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Connection Mode:</label>
+          <select class="form-control" id="connTypeSelect">
+            <option value="ble" selected>Bluetooth Low Energy (BLE)</option>
+            <option value="bluetooth_classic">Bluetooth Classic / Serial COM Port</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Printer Protocol:</label>
+          <select class="form-control" id="connProtocolSelect">
+            <option value="iprint" selected>iPrint / Cat Printer Protocol</option>
+            <option value="escpos">ESC/POS Protocol (Standard Receipt)</option>
+            <option value="tspl">TSPL Protocol (TSC Label Printer)</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="addressGroup" style="display: none;">
+          <label id="addressLabel">Device Address / COM Port:</label>
+          <input type="text" class="form-control" id="deviceAddressInput" placeholder="e.g. 00:11:22:33:44:55 or COM3">
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+          <button class="btn-secondary" id="btnScanDevices"><i data-lucide="search"></i> Scan BLE Printers</button>
+          <button class="btn-primary" id="btnConnectSelected"><i data-lucide="link"></i> Connect Printer</button>
+        </div>
+
+        <div class="history-list" id="scannedDevicesList" style="margin-top: 14px;">
+          <!-- Discovered devices -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connection Popup -->
+  <div class="modal-overlay" id="connectModal">
+    <div class="modal-card connect-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="bluetooth"></i> PRINTER CONNECTION</div>
+        <button class="btn-icon" id="btnCloseConnectModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Connecting progress -->
+        <div class="conn-panel" id="connPanel" style="display: none;">
+          <div class="conn-panel-title"><i data-lucide="bluetooth"></i> CONNECTING</div>
+          <div class="conn-progress" id="connProgress">
+            <div class="conn-step" data-step="1"><span class="conn-step-icon"><i data-lucide="loader"></i></span><span class="conn-step-text">Locating printer…</span></div>
+            <div class="conn-step" data-step="2"><span class="conn-step-icon"><i data-lucide="loader"></i></span><span class="conn-step-text">Connecting via BLE…</span></div>
+            <div class="conn-step" data-step="3"><span class="conn-step-icon"><i data-lucide="loader"></i></span><span class="conn-step-text">Discovering services…</span></div>
+            <div class="conn-step" data-step="4"><span class="conn-step-icon"><i data-lucide="loader"></i></span><span class="conn-step-text">Subscribing to notifications…</span></div>
+            <div class="conn-step" data-step="5"><span class="conn-step-icon"><i data-lucide="loader"></i></span><span class="conn-step-text">Finalizing…</span></div>
+          </div>
+          <div class="conn-waiting" id="connWaiting" style="display: none;">
+            <span class="conn-dots"></span><span>Waiting for the printer to respond…</span>
+          </div>
+          <div class="conn-error" id="connError" style="display: none;">
+            <div class="conn-error-msg" id="connErrorMsg"></div>
+            <button class="btn-secondary" id="btnRetryConnect"><i data-lucide="refresh-cw"></i> Retry</button>
+          </div>
+        </div>
+
+        <!-- Connected -->
+        <div class="conn-connected" id="connConnected" style="display: none;">
+          <div class="conn-connected-header">
+            <span class="conn-connected-badge"><i data-lucide="check-circle"></i> CONNECTED</span>
+            <button class="btn-secondary danger small" id="btnDisconnectDevice"><i data-lucide="unplug"></i> Disconnect</button>
+          </div>
+          <div class="conn-device-name" id="connDeviceName">—</div>
+          <div class="conn-device-meta" id="connDeviceMeta"></div>
+          <div class="conn-device-info" id="connDeviceInfo" style="display:none;"></div>
+          <div class="conn-device-battery" id="connDeviceBattery" style="display:none;">
+            <i data-lucide="battery-charging"></i> Battery: <b><span id="connBatteryLevel">--</span>%</b>
+          </div>
+          <div style="margin-top: 14px; text-align: center;">
+            <button class="btn-secondary small" id="btnOpenDebug"><i data-lucide="bug"></i> Debug Packet View</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="settings"></i> Application Settings</div>
+        <button class="btn-icon" id="btnCloseSettingsModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="controls-grid">
+          <div class="form-group">
+            <label>Paper Width (mm):</label>
+            <input type="number" class="form-control" id="settingPaperWidthMm" value="58">
+          </div>
+          <div class="form-group">
+            <label>Print Resolution (px):</label>
+            <input type="number" class="form-control" id="settingPrintWidthPx" value="384">
+          </div>
+          <div class="form-group">
+            <label>Side Margin (px):</label>
+            <input type="number" class="form-control" id="settingMarginPx" value="8">
+          </div>
+          <div class="form-group">
+            <label>Print Density (1-10):</label>
+            <input type="number" class="form-control" id="settingDensity" value="8" min="1" max="10">
+          </div>
+          <div class="form-group">
+            <label>Tear-bar Feed (dots, iPrint):</label>
+            <input type="number" class="form-control" id="settingFeedDots" value="130" min="0" max="2000" title="Trailing paper feed after each iPrint job to clear the tear bar (0 = none).">
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+          <button class="btn-primary" id="btnSaveSettings"><i data-lucide="check"></i> Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wi-Fi QR Wizard Modal -->
+  <div class="modal-overlay" id="wifiModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="wifi"></i> WI-FI QR CARD</div>
+        <button class="btn-icon" id="btnCloseWifiModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="controls-grid">
+          <div class="form-group">
+            <label>Network Name (SSID)</label>
+            <input type="text" class="form-control" id="wifiSsid" placeholder="MyNetwork">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="text" class="form-control" id="wifiPassword" placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label>Security</label>
+            <select class="form-control" id="wifiSecurity">
+              <option value="WPA" selected>WPA / WPA2</option>
+              <option value="WEP">WEP</option>
+              <option value="nopass">None (Open)</option>
+            </select>
+          </div>
+        </div>
+        <div class="devices-actions end">
+          <button class="btn-primary" id="btnCreateWifiQr"><i data-lucide="qr-code"></i> Create QR Block</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contact QR Wizard Modal -->
+  <div class="modal-overlay" id="contactModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="contact"></i> CONTACT QR CARD</div>
+        <button class="btn-icon" id="btnCloseContactModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="controls-grid">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" class="form-control" id="contactName" placeholder="John Doe">
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" class="form-control" id="contactPhone" placeholder="+1 555 0100">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="text" class="form-control" id="contactEmail" placeholder="john@mail.com">
+          </div>
+          <div class="form-group">
+            <label>Company / Title</label>
+            <input type="text" class="form-control" id="contactCompany" placeholder="Acme Corp · Dev">
+          </div>
+        </div>
+        <div class="devices-actions end">
+          <button class="btn-primary" id="btnCreateContactQr"><i data-lucide="qr-code"></i> Create QR Block</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CSV Labels Modal -->
+  <div class="modal-overlay" id="csvModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="file-spreadsheet"></i> CSV → LABELS</div>
+        <button class="btn-icon" id="btnCloseCsvModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>CSV FILE (Name, SKU, Price)</label>
+          <input type="file" class="form-control" id="csvFileInput" accept=".csv,.txt">
+        </div>
+        <div class="controls-grid">
+          <div class="form-group">
+            <label>Name Column</label>
+            <select class="form-control" id="csvNameCol"><option value="0">Column 1</option><option value="1">Column 2</option><option value="2">Column 3</option></select>
+          </div>
+          <div class="form-group">
+            <label>SKU Column (barcode)</label>
+            <select class="form-control" id="csvSkuCol"><option value="0">Column 1</option><option value="1" selected>Column 2</option><option value="2">Column 3</option></select>
+          </div>
+          <div class="form-group">
+            <label>Price Column</label>
+            <select class="form-control" id="csvPriceCol"><option value="0">Column 1</option><option value="1">Column 2</option><option value="2" selected>Column 3</option></select>
+          </div>
+          <div class="form-group">
+            <label>Copies per Label</label>
+            <input type="number" class="form-control" id="csvCopies" value="1" min="1" max="99">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="toggle-checkbox" style="justify-content: flex-start;">
+            <input type="checkbox" id="csvHasHeader" checked> First row is a header
+          </label>
+        </div>
+        <div class="settings-note" id="csvPreviewNote">Load a CSV to see a preview of the first rows.</div>
+        <div class="devices-actions end">
+          <button class="btn-primary" id="btnCreateCsvLabels"><i data-lucide="printer"></i> Print Labels</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clipboard Import Modal -->
+  <div class="modal-overlay" id="clipboardModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="clipboard-paste"></i> IMPORT TEXT</div>
+        <button class="btn-icon" id="btnCloseClipboardModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>PASTE YOUR TEXT — each line becomes a text block</label>
+          <textarea class="form-control" id="clipboardText" rows="10" placeholder="Line one&#10;Line two&#10;Line three"></textarea>
+        </div>
+        <div class="devices-actions end">
+          <button class="btn-primary" id="btnImportClipboardText"><i data-lucide="plus-circle"></i> Import as Blocks</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Crop Modal -->
+  <div class="modal-overlay" id="cropModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="crop"></i> CROP IMAGE</div>
+        <button class="btn-icon" id="btnCloseCropModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="crop-canvas-wrap" id="cropCanvasWrap">
+          <img id="cropImage" alt="Crop preview">
+          <div class="crop-selection" id="cropSelection"></div>
+        </div>
+        <div class="settings-note">Drag on the image to draw the crop box.</div>
+        <div class="devices-actions end">
+          <button class="btn-secondary" id="btnResetCrop">Reset</button>
+          <button class="btn-primary" id="btnApplyCrop"><i data-lucide="check"></i> Apply Crop</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug Packet Inspector Modal -->
+  <div class="modal-overlay" id="debugModal">
+    <div class="modal-card debug-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="bug"></i> PACKET INSPECTOR</div>
+        <button class="btn-icon" id="btnCloseDebugModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="debug-summary" id="debugSummary"></div>
+        <div class="debug-device" id="debugDevice"></div>
+        <div class="debug-tabs">
+          <button class="btn-secondary small active" id="debugTabPackets">Last Job Packets</button>
+          <button class="btn-secondary small" id="debugTabTrace">Wire Trace</button>
+        </div>
+        <div class="debug-view" id="debugView">
+          <!-- packet table / trace / hex loaded via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/preview.js"></script>
+  <script src="/static/js/editor.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
