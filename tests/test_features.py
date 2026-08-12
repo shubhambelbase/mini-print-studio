@@ -294,5 +294,55 @@ class TestPhotoSmoothing(unittest.TestCase):
                          ImageProcessor.to_raster_bytes(b))
 
 
+class TestDensityCalibration(unittest.TestCase):
+
+    def test_build_density_calibration(self):
+        img = Image.new("1", (384, 40), 1)
+        payload = PrintEngine.build_density_calibration(img, densities=[5, 7, 10], strip_feed_dots=10)
+        packets = IPrintProtocol.parse_stream(payload)
+        self.assertTrue(all(p["crc_ok"] is not False for p in packets))
+
+        # One 0xAF energy packet per density strip, with the scaled value.
+        energies = [p for p in packets if p["opcode"] == 0xAF]
+        self.assertEqual(len(energies), 3)
+        for pkt, density in zip(energies, [5, 7, 10]):
+            raw = bytes.fromhex(pkt["payload_hex"])
+            value = raw[0] | (raw[1] << 8)
+            expected = int(17500 * density / 8)
+            self.assertEqual(value, expected, f"density {density}")
+
+        # Label + image rows per strip (6 rows of 0xA2 per strip: label 28px
+        # → 4 bytes-tall label? label height 28 → rows; count must be
+        # (28 + 40) rows per strip when using threshold rows).
+        draws = [p for p in packets if p["opcode"] == 0xA2]
+        self.assertEqual(len(draws), 3 * (28 + 40))
+        self.assertTrue(all(p["length"] == 48 for p in draws))
+
+    async def _run_raw_job(self):
+        import tempfile
+        pm = PrinterManager(data_dir=tempfile.mkdtemp(prefix="mps-cal-"))
+        from backend.adapters.mock import MockPrinterAdapter
+        pm.current_adapter = MockPrinterAdapter(address="00:11:22:33:44:55", protocol="iprint")
+        await pm.current_adapter.connect()
+        pm.active_printer_device = type("D", (), {
+            "name": "Mock", "printable_width_px": 384, "protocol": "iprint"
+        })()
+        payload = PrintEngine.build_density_calibration(Image.new("1", (384, 10), 1), densities=[6, 8])
+        job = await pm.submit_print_job(PrintRequest(
+            title="Cal", blocks=[], raw_payload=payload, width_px=384, margin_px=0,
+            feed_lines=0, cut_paper=False, copies=1
+        ))
+        # Wait for the queue worker to finish.
+        for _ in range(200):
+            if job.status in ("completed", "failed", "cancelled"):
+                break
+            await asyncio.sleep(0.05)
+        self.assertEqual(job.status, "completed")
+        self.assertEqual(pm.current_adapter.last_payload, payload)
+
+    def test_raw_payload_job_flow(self):
+        asyncio.run(self._run_raw_job())
+
+
 if __name__ == "__main__":
     unittest.main()

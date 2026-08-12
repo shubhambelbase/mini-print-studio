@@ -783,6 +783,43 @@ window.App = {
     }
   },
 
+  // ── One-tap density calibration (image only) ─────────────────
+  async printCalibration(blockId) {
+    const block = window.EditorManager && window.EditorManager.blocks.find(b => b.id === blockId);
+    if (!block || !block.image_data) {
+      this.showToast("Upload an image first.", "error");
+      return;
+    }
+    let widthPx = 384;
+    if (window.ActivePrinter && window.ActivePrinter.printable_width_px) {
+      widthPx = window.ActivePrinter.printable_width_px;
+    } else if (window.AppSettings && window.AppSettings.printer) {
+      widthPx = window.AppSettings.printer.printable_width_px;
+    }
+    const req = {
+      image_data: block.image_data,
+      width_px: widthPx,
+      dither_mode: block.dither_mode || null,
+      brightness: block.brightness,
+      contrast: block.contrast,
+      sharpen: block.sharpen,
+      scale_mode: block.scale_mode || "fit",
+      invert: block.invert || false,
+      auto_level: block.auto_level,
+      smooth: block.smooth,
+      processing_preset: block.processing_preset || "photo",
+      gamma: block.gamma,
+      densities: [5, 6, 7, 8, 9, 10]
+    };
+    try {
+      this.showToast("Sending density calibration job (densities 5–10)…", "info");
+      const job = await API.calibrateImage(req);
+      this.showToast(`Calibration queued — '${job.title}' is printing. Compare the strips and set the best density in Settings.`, "success");
+    } catch (err) {
+      this.showToast(`Calibration failed: ${err.message}`, "error");
+    }
+  },
+
   // ── Debug packet inspector ──────────────────────────────────
   async openDebugModal() {
     this.openModal("debugModal");

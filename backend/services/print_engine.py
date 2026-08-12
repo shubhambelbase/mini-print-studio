@@ -515,3 +515,53 @@ class PrintEngine:
             if cut_paper:
                 cmd_buf.extend(ESCPOSProtocol.CUT_PAPER)
             return bytes(cmd_buf)
+
+    # ------------------------------------------------------------------ #
+    # Density calibration (image-only, one-tap)
+    # ------------------------------------------------------------------ #
+
+    @classmethod
+    def _render_calibration_label(cls, text: str) -> Image.Image:
+        """Small centered label strip (e.g. 'DENSITY 5') above each strip."""
+        img = Image.new("1", (384, 28), 1)  # 1 = white
+        draw = ImageDraw.Draw(img)
+        font = cls.get_font(17)
+        width = cls._measure_text(draw, text, font)
+        draw.text(((384 - width) // 2, 5), text, fill=0, font=font)
+        return img
+
+    @classmethod
+    def build_density_calibration(
+        cls,
+        processed_image: Image.Image,
+        densities=(5, 6, 7, 8, 9, 10),
+        strip_feed_dots: int = 30
+    ) -> bytes:
+        """
+        Builds ONE payload that prints the same image at several energy
+        levels. Each strip is its own self-contained iPrint job (wake + init
+        + 0xAF energy + rows + feed), which the protocol allows (doc 6.1) —
+        the energy value applies to everything after it until the next one.
+        """
+        from backend.protocols.iprint import IPrintProtocol
+
+        if processed_image.mode != "1":
+            processed_image = processed_image.convert("1")
+        if processed_image.width != 384:
+            # Center on a 384-wide canvas so rows stay 48 bytes.
+            pad = (384 - processed_image.width) // 2
+            canvas = Image.new("1", (384, processed_image.height), 1)
+            canvas.paste(processed_image, (pad, 0))
+            processed_image = canvas
+
+        out = bytearray()
+        for density in densities:
+            density = max(1, min(10, int(density)))
+            label = cls._render_calibration_label(f"DENSITY {density}")
+            composite = Image.new("1", (384, label.height + processed_image.height), 1)
+            composite.paste(label, (0, 0))
+            composite.paste(processed_image, (0, label.height))
+            out.extend(IPrintProtocol.generate_payload(
+                composite, feed_lines=strip_feed_dots, density=density
+            ))
+        return bytes(out)

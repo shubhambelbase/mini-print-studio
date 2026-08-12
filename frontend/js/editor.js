@@ -457,6 +457,7 @@ window.EditorManager = {
               <input type="file" class="form-control" accept="image/*" onchange="EditorManager.handleImageUpload('${block.id}', this)">
               ${block.image_data ? `<button class="btn-secondary small" style="white-space: nowrap;" onclick="window.App.openCropModal('${block.id}')"><i data-lucide="crop" style="width: 13px; height: 13px;"></i> Crop</button>` : ''}
               ${block.image_data ? `<button class="btn-secondary small" style="white-space: nowrap; color: var(--accent);" onclick="window.App.openCompareModal('${block.id}')"><i data-lucide="sliders-horizontal" style="width: 13px; height: 13px;"></i> Compare</button>` : ''}
+              ${block.image_data ? `<button class="btn-secondary small" style="white-space: nowrap; color: var(--accent-warning);" onclick="window.App.printCalibration('${block.id}')" title="Prints this image at densities 5–10 in one job"><i data-lucide="flame" style="width: 13px; height: 13px;"></i> Calibrate</button>` : ''}
             </div>
           </div>
           ${block.image_data ? `<img src="${block.image_data}" style="max-height: 100px; object-fit: contain; margin: 6px 0; border-radius: 4px; border: 1px solid var(--border-color);">` : ''}

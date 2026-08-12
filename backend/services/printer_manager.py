@@ -293,14 +293,22 @@ class PrinterManager:
                 width_px = print_req.width_px or 384
             margin_px = print_req.margin_px if print_req.margin_px is not None else 8
 
-            rendered_image = PrintEngine.render_blocks_to_image(
-                blocks=print_req.blocks,
-                target_width_px=width_px,
-                margin_px=margin_px
-            )
-            job.width_px = rendered_image.width
-            job.height_px = rendered_image.height
-            job.preview_url = ImageProcessor.to_base64_png(rendered_image)
+            raw = print_req.raw_payload
+            if raw:
+                # Pre-built payloads (e.g. density calibration) skip the
+                # block rendering stage entirely.
+                rendered_image = None
+                job.width_px = width_px
+                job.height_px = 0
+            else:
+                rendered_image = PrintEngine.render_blocks_to_image(
+                    blocks=print_req.blocks,
+                    target_width_px=width_px,
+                    margin_px=margin_px
+                )
+                job.width_px = rendered_image.width
+                job.height_px = rendered_image.height
+                job.preview_url = ImageProcessor.to_base64_png(rendered_image)
             await asyncio.sleep(0)
 
             if job.status == "cancelled":
@@ -323,24 +331,28 @@ class PrinterManager:
             # None-check (not "or 3") so an explicit feed_lines=0 really means
             # "no trailing feed" instead of silently becoming the default.
             feed_lines = print_req.feed_lines if print_req.feed_lines is not None else 3
-            base_bytes = PrintEngine.generate_protocol_bytes(
-                image=rendered_image,
-                protocol=protocol,
-                feed_lines=feed_lines,
-                cut_paper=False,
-                density=density,
-                feed_dots=printer_cfg["tear_bar_feed_dots"]
-            )
-            final_bytes = base_bytes
-            if print_req.cut_paper:
-                final_bytes = PrintEngine.generate_protocol_bytes(
+            if raw:
+                base_bytes = raw
+                final_bytes = raw
+            else:
+                base_bytes = PrintEngine.generate_protocol_bytes(
                     image=rendered_image,
                     protocol=protocol,
                     feed_lines=feed_lines,
-                    cut_paper=True,
+                    cut_paper=False,
                     density=density,
                     feed_dots=printer_cfg["tear_bar_feed_dots"]
                 )
+                final_bytes = base_bytes
+                if print_req.cut_paper:
+                    final_bytes = PrintEngine.generate_protocol_bytes(
+                        image=rendered_image,
+                        protocol=protocol,
+                        feed_lines=feed_lines,
+                        cut_paper=True,
+                        density=density,
+                        feed_dots=printer_cfg["tear_bar_feed_dots"]
+                    )
 
             try:
                 async with self._send_lock:

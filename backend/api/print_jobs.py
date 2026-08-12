@@ -3,7 +3,7 @@ import csv
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Response
 from typing import Dict, Any, Optional, List
-from backend.models.print_job import PrintRequest, PrintJobRecord, ContentBlock, CSVLabelRequest
+from backend.models.print_job import PrintRequest, PrintJobRecord, ContentBlock, CSVLabelRequest, CalibrateRequest
 from backend.services.printer_manager import PrinterManager
 from backend.services.print_engine import PrintEngine
 from backend.services.image_processor import ImageProcessor
@@ -80,6 +80,50 @@ async def create_print_job(
         return await manager.submit_print_job(print_req)
     except ConnectionError as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/calibrate", response_model=PrintJobRecord)
+async def print_image_calibration(req: CalibrateRequest, manager: PrinterManager = Depends(get_printer_manager)):
+    """
+    One-tap image density calibration. Processes the uploaded image with the
+    requested preset/tone settings, then prints it as labeled strips at
+    several energy levels (0xAF) in a single job — pick the density that
+    looks best on your paper and set it in Settings.
+    """
+    if not manager.current_adapter or not manager.current_adapter.is_connected():
+        raise HTTPException(status_code=503, detail="No printer connected. Please connect to a physical printer.")
+    try:
+        raw_img = ImageProcessor.load_image(req.image_data)
+        processed = ImageProcessor.process_image(
+            image=raw_img,
+            target_width_px=req.width_px,
+            dither_mode=req.dither_mode,
+            brightness=req.brightness,
+            contrast=req.contrast,
+            sharpen=req.sharpen,
+            scale_mode=req.scale_mode,
+            invert=req.invert,
+            auto_level=req.auto_level,
+            smooth=req.smooth,
+            processing_preset=req.processing_preset,
+            gamma=req.gamma
+        )
+        payload = PrintEngine.build_density_calibration(processed, densities=req.densities)
+        job = await manager.submit_print_job(PrintRequest(
+            title="Image Density Calibration",
+            blocks=[],
+            width_px=req.width_px,
+            margin_px=0,
+            feed_lines=0,
+            cut_paper=False,
+            copies=1,
+            raw_payload=payload
+        ))
+        return job
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Calibration error: {str(e)}")
 
 
 @router.get("/jobs/{job_id}", response_model=PrintJobRecord)

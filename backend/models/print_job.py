@@ -70,6 +70,28 @@ class PrintRequest(BaseModel):
     feed_lines: Optional[int] = 3
     cut_paper: Optional[bool] = False
     copies: Optional[int] = Field(1, ge=1, le=99, description="Number of copies to print")
+    raw_payload: Optional[bytes] = Field(
+        None, description="Pre-built protocol bytes; skips block rendering when set (internal use)"
+    )
+
+
+class CalibrateRequest(BaseModel):
+    """One-tap image density calibration: prints the same processed image at
+    several energy levels (0xAF) in a single job so the user can pick the
+    density that suits their paper roll."""
+    image_data: str
+    width_px: int = 384
+    processing_preset: str = "photo"
+    dither_mode: Optional[str] = None
+    brightness: Optional[float] = None
+    contrast: Optional[float] = None
+    sharpen: Optional[float] = None
+    smooth: Optional[float] = None
+    auto_level: Optional[bool] = None
+    gamma: Optional[float] = None
+    invert: bool = False
+    scale_mode: str = "fit"
+    densities: List[int] = Field(default_factory=lambda: [5, 6, 7, 8, 9, 10])
 
 
 class ImageProcessRequest(BaseModel):

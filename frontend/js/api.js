@@ -107,6 +107,12 @@ const API = {
       body: imageProcessRequest,
     });
   },
+  calibrateImage(payload) {
+    return this.request("/print/calibrate", {
+      method: "POST",
+      body: payload,
+    });
+  },
 
   // Settings Endpoints
   getSettings() {
