@@ -270,6 +270,9 @@ window.App = {
       this.renderDebugTrace();
     });
 
+    // Image processing compare
+    document.getElementById("btnCloseCompareModal")?.addEventListener("click", () => this.closeModal("compareModal"));
+
     // Connection type select toggling
     document.getElementById("connTypeSelect")?.addEventListener("change", (e) => {
       const addrGroup = document.getElementById("addressGroup");
@@ -711,6 +714,73 @@ window.App = {
           <span class="chart-value">${stats.today_jobs || 0}</span>
         </div>
       </div>`;
+  },
+
+  // ── Image processing compare ────────────────────────────────
+  async openCompareModal(blockId) {
+    const block = window.EditorManager && window.EditorManager.blocks.find(b => b.id === blockId);
+    if (!block || !block.image_data) return;
+    this._compareBlockId = blockId;
+    this.openModal("compareModal");
+    const note = document.getElementById("compareNote");
+    const orig = document.getElementById("compareOriginal");
+    const gray = document.getElementById("compareGrayscale");
+    const fin = document.getElementById("compareFinal");
+    const variantsEl = document.getElementById("compareVariants");
+    if (note) note.textContent = "Rendering comparison…";
+    if (orig) orig.style.display = "none";
+    if (gray) gray.style.display = "none";
+    if (fin) fin.style.display = "none";
+    if (variantsEl) variantsEl.innerHTML = "";
+
+    // Pull the block's own settings (preset, dither, tone) so the compare
+    // always reflects exactly what that image block will print as.
+    let widthPx = 384;
+    if (window.ActivePrinter && window.ActivePrinter.printable_width_px) {
+      widthPx = window.ActivePrinter.printable_width_px;
+    } else if (window.AppSettings && window.AppSettings.printer) {
+      widthPx = window.AppSettings.printer.printable_width_px;
+    }
+    const req = {
+      image_data: block.image_data,
+      width_px: widthPx,
+      dither_mode: block.dither_mode || null,
+      brightness: block.brightness,
+      contrast: block.contrast,
+      sharpen: block.sharpen,
+      scale_mode: block.scale_mode || "fit",
+      invert: block.invert || false,
+      auto_level: block.auto_level,
+      smooth: block.smooth,
+      processing_preset: block.processing_preset || "photo",
+      gamma: block.gamma
+    };
+
+    try {
+      const res = await API.compareImage(req);
+      if (orig) { orig.src = res.original_url; orig.style.display = "block"; }
+      if (gray) { gray.src = res.grayscale_url; gray.style.display = "block"; }
+      if (fin) { fin.src = res.final_url; fin.style.display = "block"; }
+      if (note) {
+        note.textContent = `Preset: ${this.escapeHtml((res.processing_preset || "photo").replace("_", " "))} · Dither in use: ${this.escapeHtml(res.dither || "preset")} · ${res.width_px} × ${res.height_px} px (${res.height_px / 8} mm long)`;
+      }
+      if (variantsEl) {
+        const tiles = [
+          ["floyd-steinberg", "Floyd–Steinberg (smooth)"],
+          ["atkinson", "Atkinson (crisp)"],
+          ["bayer", "Bayer (ordered)"],
+          ["threshold", "Threshold (hard)"],
+        ];
+        variantsEl.innerHTML = tiles.map(([algo, label]) => `
+          <div class="compare-tile">
+            <div class="compare-tile-title">${label}</div>
+            <img src="${res.variants[algo]}" alt="${label}">
+          </div>`).join("");
+      }
+    } catch (err) {
+      if (note) note.textContent = `Compare failed: ${this.escapeHtml(err.message)}`;
+      if (variantsEl) variantsEl.innerHTML = "";
+    }
   },
 
   // ── Debug packet inspector ──────────────────────────────────

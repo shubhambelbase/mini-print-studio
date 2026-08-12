@@ -176,6 +176,93 @@ class TestSmartAutoLevel(unittest.TestCase):
         self.assertTrue(0 in colors and (1 in colors or 255 in colors))
 
 
+class TestProcessingPresets(unittest.TestCase):
+
+    def _make_gradient(self):
+        img = Image.new("L", (200, 200))
+        px = img.load()
+        for y in range(200):
+            for x in range(200):
+                px[x, y] = 40 + (x * 180) // 200
+        return img.convert("RGB")
+
+    def test_photo_preset_uses_floyd_steinberg(self):
+        stages = ImageProcessor.prepare_grayscale(
+            self._make_gradient(), processing_preset="photo"
+        )
+        self.assertEqual(stages["dither"], "floyd-steinberg")
+
+    def test_preset_unknown_falls_back_to_photo(self):
+        stages = ImageProcessor.prepare_grayscale(
+            self._make_gradient(), processing_preset="not-a-preset"
+        )
+        self.assertEqual(stages["dither"], "floyd-steinberg")
+
+    def test_sharp_presets_use_threshold(self):
+        for preset in ("line_art", "text", "qr"):
+            stages = ImageProcessor.prepare_grayscale(
+                self._make_gradient(), processing_preset=preset
+            )
+            self.assertEqual(stages["dither"], "threshold", preset)
+
+    def test_manga_uses_bayer(self):
+        stages = ImageProcessor.prepare_grayscale(
+            self._make_gradient(), processing_preset="manga"
+        )
+        self.assertEqual(stages["dither"], "bayer")
+
+    def test_gamma_10_is_noop(self):
+        img = self._make_gradient()
+        plain = ImageProcessor.prepare_grayscale(img, processing_preset="photo")
+        g1 = ImageProcessor.prepare_grayscale(img, processing_preset="photo", gamma=1.0)
+        self.assertEqual(ImageProcessor.to_raster_bytes(plain["grayscale"]),
+                         ImageProcessor.to_raster_bytes(g1["grayscale"]))
+
+    def test_dither_image_abstraction(self):
+        """All algorithms accept the same grayscale and yield 1-bit output."""
+        img = self._make_gradient()
+        gray = ImageProcessor.prepare_grayscale(img, processing_preset="photo")["grayscale"]
+        for algo in ("atkinson", "floyd-steinberg", "stucki", "bayer", "threshold"):
+            out = ImageProcessor.dither_image(gray, algo)
+            self.assertEqual(out.mode, "1", algo)
+            self.assertEqual(out.width, 384, algo)
+        # The algorithms genuinely differ from each other.
+        outs = [ImageProcessor.to_raster_bytes(ImageProcessor.dither_image(gray, a))
+                for a in ("atkinson", "floyd-steinberg", "bayer")]
+        self.assertTrue(len(set(outs)) >= 2)
+
+    def test_photo_never_sharpens_by_default(self):
+        img = self._make_gradient()
+        plain = ImageProcessor.prepare_grayscale(img, processing_preset="photo")
+        forced = ImageProcessor.prepare_grayscale(img, processing_preset="photo", sharpen=1.0)
+        self.assertEqual(ImageProcessor.to_raster_bytes(plain["grayscale"]),
+                         ImageProcessor.to_raster_bytes(forced["grayscale"]))
+
+    def test_process_stages_returns_variants(self):
+        stages = ImageProcessor.process_stages(self._make_gradient(), processing_preset="photo")
+        self.assertEqual(stages["final"].mode, "1")
+        self.assertEqual(stages["final"].width, 384)
+        self.assertIn("floyd-steinberg", stages["variants"])
+        self.assertIn("bayer", stages["variants"])
+        self.assertIn("atkinson", stages["variants"])
+        # The final output must be one of the variants (the active dither).
+        self.assertEqual(
+            ImageProcessor.to_raster_bytes(stages["final"]),
+            ImageProcessor.to_raster_bytes(stages["variants"][stages["dither"]])
+        )
+
+    def test_autolevel_leaves_bright_scenes_alone(self):
+        # Bright scene (mean ~185, narrow span): must NOT be stretched,
+        # otherwise clean whites become 50% black on paper.
+        img = Image.new("L", (200, 200))
+        px = img.load()
+        for y in range(200):
+            for x in range(200):
+                px[x, y] = 175 + (x * 60) // 200
+        stretched = ImageProcessor._apply_smart_autolevel(img.convert("L"))
+        self.assertEqual(stretched.getpixel((0, 0)), 175)
+
+
 class TestPhotoSmoothing(unittest.TestCase):
 
     def test_smoothing_changes_diffusion_output(self):

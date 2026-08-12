@@ -29,6 +29,10 @@ class ContentBlock(BaseModel):
     scale_mode: Optional[str] = Field("fit", description="fit, crop, original")
     auto_level: Optional[bool] = Field(True, description="Smart histogram stretch (only when the image is washed out)")
     smooth: Optional[float] = Field(0.7, description="Pre-dither Gaussian blur radius for photos (0 = off)")
+    processing_preset: Optional[str] = Field(
+        None, description="photo, photo_detail, manga, line_art, text, qr — thermal-tuned pipeline defaults"
+    )
+    gamma: Optional[float] = Field(None, description="Tone curve: <1 lifts midtones (lighter print), 1.0 = none")
     
     # QR Code attributes
     qr_payload: Optional[str] = None
@@ -71,14 +75,16 @@ class PrintRequest(BaseModel):
 class ImageProcessRequest(BaseModel):
     image_data: str
     width_px: int = 384
-    dither_mode: str = "atkinson"
-    brightness: float = 1.0
-    contrast: float = 1.0
-    sharpen: float = 1.0
+    dither_mode: Optional[str] = None
+    brightness: Optional[float] = None
+    contrast: Optional[float] = None
+    sharpen: Optional[float] = None
     invert: bool = False
     scale_mode: str = "fit"
-    auto_level: bool = True
-    smooth: float = 0.7
+    auto_level: Optional[bool] = None
+    smooth: Optional[float] = None
+    processing_preset: str = "photo"
+    gamma: Optional[float] = None
 
 
 class PrintJobRecord(BaseModel):

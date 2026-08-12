@@ -248,14 +248,16 @@ class PrintEngine:
             processed_img = ImageProcessor.process_image(
                 image=raw_img,
                 target_width_px=max_width_px,
-                dither_mode=block.dither_mode or "atkinson",
-                brightness=block.brightness or 1.0,
-                contrast=block.contrast or 1.0,
-                sharpen=block.sharpen or 1.0,
+                dither_mode=block.dither_mode,
+                brightness=block.brightness,
+                contrast=block.contrast,
+                sharpen=block.sharpen,
                 scale_mode=block.scale_mode or "fit",
                 invert=block.invert or False,
-                auto_level=block.auto_level if block.auto_level is not None else True,
-                smooth=block.smooth if block.smooth is not None else 0.7
+                auto_level=block.auto_level,
+                smooth=block.smooth,
+                processing_preset=block.processing_preset or "photo",
+                gamma=block.gamma
             )
             setattr(processed_img, "align", block.align or "center")
             return processed_img

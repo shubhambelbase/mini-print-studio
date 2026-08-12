@@ -11,10 +11,11 @@ window.PreviewManager = {
   debounceTimer: null,
 
   DITHER_TIPS: {
-    "atkinson": "Use for: photos, sketches, images with gradients",
-    "floyd-steinberg": "Use for: photos, sketches, images with gradients",
+    "": "Using each image block's processing preset (Photo → Floyd–Steinberg, Manga → Bayer, Text/QR → Threshold)",
+    "atkinson": "Use for: high-detail photos, sketches",
+    "floyd-steinberg": "Use for: photos, smooth gradients (photo default)",
     "stucki": "Use for: smooth gradients with richer blacks",
-    "bayer": "Use for: logos, icons, charts, flat graphics",
+    "bayer": "Use for: manga, logos, icons, flat graphics",
     "threshold": "Use for: text, QR codes, barcodes, line art",
   },
 

@@ -181,10 +181,11 @@
           <div class="form-group" style="flex: 1;">
             <label for="ditherSelect">Dithering Mode:</label>
             <select class="form-control" id="ditherSelect">
-              <option value="atkinson" selected>Atkinson — best for photos & gradients (Recommended)</option>
-              <option value="floyd-steinberg">Floyd–Steinberg — smooth classic diffusion</option>
+              <option value="" selected>Default (use processing preset)</option>
+              <option value="floyd-steinberg">Floyd–Steinberg — smoothest gradients (photo default)</option>
+              <option value="atkinson">Atkinson — crisp dots, high detail</option>
               <option value="stucki">Stucki — richer blacks, smoother tones</option>
-              <option value="bayer">Bayer — for logos, icons, flat graphics</option>
+              <option value="bayer">Bayer — clean ordered pattern, manga/flat</option>
               <option value="threshold">Threshold — for text, QR codes, line art</option>
             </select>
             <span class="dither-hint" id="ditherHint"></span>
@@ -549,6 +550,37 @@
         <div class="devices-actions end">
           <button class="btn-secondary" id="btnResetCrop">Reset</button>
           <button class="btn-primary" id="btnApplyCrop"><i data-lucide="check"></i> Apply Crop</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Compare Modal -->
+  <div class="modal-overlay" id="compareModal">
+    <div class="modal-card compare-card">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="sliders-horizontal"></i> IMAGE PROCESSING COMPARE</div>
+        <button class="btn-icon" id="btnCloseCompareModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="compare-note" id="compareNote">Rendering comparison…</div>
+        <div class="compare-stages">
+          <div class="compare-stage">
+            <div class="compare-stage-title">1 · ORIGINAL (resized 384 px)</div>
+            <img id="compareOriginal" alt="Original">
+          </div>
+          <div class="compare-stage">
+            <div class="compare-stage-title">2 · TONE-MAPPED GRAYSCALE</div>
+            <img id="compareGrayscale" alt="Tone-mapped grayscale">
+          </div>
+          <div class="compare-stage">
+            <div class="compare-stage-title">3 · FINAL 1-BIT (what the printer receives)</div>
+            <img id="compareFinal" alt="Final 1-bit output">
+          </div>
+        </div>
+        <div class="compare-variants-title">DITHER COMPARISON — same image, same tone, different algorithms</div>
+        <div class="compare-variants" id="compareVariants">
+          <!-- dither tiles loaded via JS -->
         </div>
       </div>
     </div>

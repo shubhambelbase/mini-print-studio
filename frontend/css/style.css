@@ -1294,3 +1294,43 @@ input[type="range"]::-moz-range-thumb {
   font-size: 12px; color: var(--text-secondary); text-align: center;
   margin: 4px 0 8px; word-break: break-all; font-family: Consolas, monospace;
 }
+
+/* ── Image processing compare modal ─────────────────────────── */
+.compare-card { width: min(920px, 100%); }
+.compare-card .modal-body { display: flex; flex-direction: column; gap: 10px; }
+.compare-note { font-size: 12px; color: var(--text-secondary); }
+.compare-stages {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+}
+.compare-stage {
+  border: 1px solid var(--border-color); border-radius: 6px;
+  padding: 6px; background: var(--bg-secondary); overflow: hidden;
+}
+.compare-stage-title {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+}
+.compare-stage img {
+  width: 100%; image-rendering: pixelated; display: block;
+  background: #fff; border-radius: 4px;
+}
+.compare-variants-title {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-muted); margin-top: 4px;
+}
+.compare-variants {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+}
+.compare-tile {
+  border: 1px solid var(--border-color); border-radius: 6px;
+  padding: 6px; background: var(--bg-secondary); overflow: hidden;
+}
+.compare-tile-title {
+  font-size: 10px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.compare-tile img { width: 100%; image-rendering: pixelated; display: block; background: #fff; border-radius: 4px; }
+@media (max-width: 720px) {
+  .compare-stages { grid-template-columns: 1fr; }
+  .compare-variants { grid-template-columns: 1fr 1fr; }
+}

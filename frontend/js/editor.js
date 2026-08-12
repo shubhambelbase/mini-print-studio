@@ -196,7 +196,9 @@ window.EditorManager = {
         align: initialValues.align || "center",
         invert: initialValues.invert || false,
         auto_level: initialValues.auto_level !== undefined ? initialValues.auto_level : true,
-        smooth: initialValues.smooth !== undefined ? initialValues.smooth : 0.7
+        smooth: initialValues.smooth !== undefined ? initialValues.smooth : 0.7,
+        processing_preset: initialValues.processing_preset || "photo",
+        gamma: initialValues.gamma !== undefined ? initialValues.gamma : null
       };
     } else if (type === "qr") {
       block = {
@@ -284,14 +286,17 @@ window.EditorManager = {
     });
 
     // Apply the preview toolbar dither selection to image blocks that do not
-    // have their own explicit mode (e.g. set by a template), so preview,
-    // print, and export all use the chosen mode consistently.
+    // have their own explicit mode AND do not want the preset's own dither.
+    // The toolbar "Default (preset)" option (empty value) leaves the block's
+    // processing preset in charge.
     const ditherSelect = document.getElementById("ditherSelect");
     if (ditherSelect) {
-      const selectedDither = ditherSelect.value || "atkinson";
-      cleanBlocks.forEach(b => {
-        if (b.type === "image" && !b.dither_mode) b.dither_mode = selectedDither;
-      });
+      const selectedDither = ditherSelect.value || "";
+      if (selectedDither) {
+        cleanBlocks.forEach(b => {
+          if (b.type === "image" && !b.dither_mode) b.dither_mode = selectedDither;
+        });
+      }
     }
 
     let widthPx = 384;
@@ -451,10 +456,22 @@ window.EditorManager = {
             <div style="display: flex; gap: 8px; align-items: center;">
               <input type="file" class="form-control" accept="image/*" onchange="EditorManager.handleImageUpload('${block.id}', this)">
               ${block.image_data ? `<button class="btn-secondary small" style="white-space: nowrap;" onclick="window.App.openCropModal('${block.id}')"><i data-lucide="crop" style="width: 13px; height: 13px;"></i> Crop</button>` : ''}
+              ${block.image_data ? `<button class="btn-secondary small" style="white-space: nowrap; color: var(--accent);" onclick="window.App.openCompareModal('${block.id}')"><i data-lucide="sliders-horizontal" style="width: 13px; height: 13px;"></i> Compare</button>` : ''}
             </div>
           </div>
           ${block.image_data ? `<img src="${block.image_data}" style="max-height: 100px; object-fit: contain; margin: 6px 0; border-radius: 4px; border: 1px solid var(--border-color);">` : ''}
           <div class="controls-grid">
+            <div class="form-group">
+              <label>Processing Preset:</label>
+              <select class="form-control" onchange="EditorManager.updateBlock('${block.id}', 'processing_preset', this.value)">
+                <option value="photo" ${(block.processing_preset || 'photo') === 'photo' ? 'selected' : ''}>Photo — Natural (default)</option>
+                <option value="photo_detail" ${block.processing_preset === 'photo_detail' ? 'selected' : ''}>Photo — High Detail</option>
+                <option value="manga" ${block.processing_preset === 'manga' ? 'selected' : ''}>Manga</option>
+                <option value="line_art" ${block.processing_preset === 'line_art' ? 'selected' : ''}>Line Art</option>
+                <option value="text" ${block.processing_preset === 'text' ? 'selected' : ''}>Text</option>
+                <option value="qr" ${block.processing_preset === 'qr' ? 'selected' : ''}>QR / Barcode</option>
+              </select>
+            </div>
             <div class="form-group">
               <label>Brightness: <span class="range-readout" id="readout-${block.id}-brightness">${block.brightness}</span></label>
               <input type="range" min="0.5" max="2.0" step="0.1" value="${block.brightness}" oninput="EditorManager.updateBlock('${block.id}', 'brightness', parseFloat(this.value))">
@@ -470,6 +487,10 @@ window.EditorManager = {
             <div class="form-group">
               <label>Smoothing (photos): <span class="range-readout" id="readout-${block.id}-smooth">${block.smooth}</span></label>
               <input type="range" min="0" max="2" step="0.1" value="${block.smooth}" oninput="EditorManager.updateBlock('${block.id}', 'smooth', parseFloat(this.value))" title="Blurs a little before dithering so photos don't look over-sharpened. 0 = off, 0.7 = default, higher = softer.">
+            </div>
+            <div class="form-group">
+              <label>Gamma: <span class="range-readout" id="readout-${block.id}-gamma">${block.gamma === null ? 'auto' : block.gamma}</span></label>
+              <input type="range" min="0.7" max="1.3" step="0.01" value="${block.gamma === null ? 1.0 : block.gamma}" oninput="EditorManager.updateBlock('${block.id}', 'gamma', parseFloat(this.value))" title="Tone curve: <1 lifts midtones (lighter print), 1.0 = none, >1 darkens.">
             </div>
           </div>
           <div class="toggle-group">
@@ -599,7 +620,7 @@ window.EditorManager = {
       block[key] = value;
       // Update the live readout in place so the slider the user is dragging
       // is never destroyed/recreated mid-drag.
-      const rangeKeys = ["brightness", "contrast", "sharpen", "space_height", "line_spacing", "letter_spacing", "smooth"];
+      const rangeKeys = ["brightness", "contrast", "sharpen", "space_height", "line_spacing", "letter_spacing", "smooth", "gamma"];
       if (rangeKeys.includes(key)) {
         const readout = document.getElementById(`readout-${id}-${key}`);
         if (readout) readout.textContent = value;

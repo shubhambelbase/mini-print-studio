@@ -101,6 +101,12 @@ const API = {
       body: imageProcessRequest,
     });
   },
+  compareImage(imageProcessRequest) {
+    return this.request("/images/compare", {
+      method: "POST",
+      body: imageProcessRequest,
+    });
+  },
 
   // Settings Endpoints
   getSettings() {
