@@ -1,4 +1,4 @@
-﻿# SC03h "iPrint" Thermal Printer Protocol — Complete Implementation Guide
+# SC03h "iPrint" Thermal Printer Protocol — Complete Implementation Guide
 
 A fully documented, implementation-ready reference for the proprietary Bluetooth Low Energy (BLE) binary protocol used by the **SC03h** thermal pocket printer and its clones (**FC02, D1, GB01, GB02, WalkPrint, FunPrint**). These printers are sold under many generic brands and normally pair with the mobile app "iPrint".
 
@@ -184,7 +184,7 @@ return crc
 ```
 payload = 0x00                        → crc8 = 0x00
 payload = 0x33  (quality cmd)         → crc8 = 0x99
-payload = 0x70 0x44 (energy 17500)    → crc8 = 0x79
+payload = 0x70 0x44 (energy 17520)    → crc8 = 0x79
 payload = 0x23  (feed speed)          → crc8 = 0xE9
 payload = 0x00..0x2F (48 bytes)       → crc8 = 0xC0
 ```
@@ -214,8 +214,8 @@ Verify your implementation by checking that `packet[len(packet)-2] == crc8(paylo
 | Setting | Opcode | Value | Notes |
 | :--- | :--- | :--- | :--- |
 | Quality / blackening | `0xA4` | `0x33` | Standard quality |
-| Energy (default) | `0xAF` | `0x70, 0x44` (17500 LE) | Known-good baseline |
-| Energy (density 1–10) | `0xAF` | `uint16(17500 * density / 8)` | Scale from the default; clamp 0–65535 |
+| Energy (default) | `0xAF` | `0x70, 0x44` (17520 LE) | Known-good baseline |
+| Energy (density 1–10) | `0xAF` | `uint16(17520 * density / 8)` | Scale from the default; clamp 0–65535 |
 | Drawing mode | `0xBE` | `0x00` | Image mode |
 | Print speed | `0xBD` | `0x23` (print) / `0x19` (blank) | See §6 |
 
@@ -379,7 +379,7 @@ Whatever the platform, you need exactly these pieces:
 job = []
 job += packet(0xA3, [0x00])
 job += packet(0xA4, [0x33])
-job += packet(0xAF, u16le(17500))
+job += packet(0xAF, u16le(17520))
 job += packet(0xBE, [0x00])
 job += packet(0xBD, [0x23])
 for row in image_rows_384:          # each row = 48 bytes
@@ -462,7 +462,7 @@ def build_job(rows) -> bytes:
     out = bytearray()
     out += packet(0xA3, b"\x00")                 # wake
     out += packet(0xA4, b"\x33")                 # quality
-    out += packet(0xAF, (17500).to_bytes(2, "little"))  # energy
+    out += packet(0xAF, (17520).to_bytes(2, "little"))  # energy
     out += packet(0xBE, b"\x00")                 # image mode
     out += packet(0xBD, b"\x23")                 # speed
     for row in rows:
@@ -592,7 +592,7 @@ async function printBitmap(canvas) {
 | Nothing prints, writes error | Stale socket after reboot | Reconnect fresh (§13.2) |
 | Page prints but **tail is missing** | Buffer overflow on long job | 25 ms pacing + packet bursts (§8) |
 | Garbled / mirrored rows | Wrong bit order or row width | MSB-first packing, exactly 48 bytes/row |
-| Faint or too-dark output | Energy wrong | `0xAF` energy 17500 baseline; scale with density |
+| Faint or too-dark output | Energy wrong | `0xAF` energy 17520 baseline; scale with density |
 | Only first page of a multi-copy job | Treated copies as one stream | Send wake+init per copy (§6.1) |
 | Job aborts on disconnect | Closed too fast | Hold ≥ 3 s (§8.3) |
 | Writes fail mid-job | Connection dropped | Auto-reconnect + resend the whole job |
