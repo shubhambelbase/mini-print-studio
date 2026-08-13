@@ -155,7 +155,7 @@ All 30 tests must pass (protocol packet/CRC, image pipeline, block rendering, te
 | Connect times out after 20 s | Printer too far away; radio interference; reboot the printer, then retry |
 | Linux: `Could not initialize Bluetooth` | Install BlueZ (`libbluetooth-dev`), restart the `bluetooth` service |
 | Fonts render as boxes | Windows fonts are used by default (`C:/Windows/Fonts`); on Linux install `ttf-mscorefonts` or `fonts-dejavu` |
-| Prints look faint / too dark | Settings → **Print Density** (energy scales from the 17500 baseline); **Tear-bar Feed** adjusts the trailing feed |
+| Prints look faint / too dark | Settings → **Print Density** (energy scales from the 17520 baseline); **Tear-bar Feed** adjusts the trailing feed |
 
 ---
 
@@ -237,7 +237,7 @@ python -m unittest discover -s tests -q
 | Prints worked, now writes fail | Stale BLE socket after system restart — reconnect fresh; the watchdog now detects this proactively |
 | Page tail missing | Long job: pacing is automatic (> 20 KB → 25 ms + bursts) |
 | Garbled rows | 48-byte rows, MSB-first — use the Packet Inspector to check CRC |
-| Faint/dark output | Adjust density in Settings (energy scales from 17500) |
+| Faint/dark output | Adjust density in Settings (energy scales from 17520) |
 | Job aborts on disconnect | Hold the connection ≥ 3 s after the last write (server keeps it open) |
 
 See [Bluetooth_Incident_Report.md](Bluetooth_Incident_Report.md) for a real-world stale-socket incident and the fix that became the auto-reconnect + watchdog behavior.
