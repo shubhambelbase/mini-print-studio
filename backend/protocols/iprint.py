@@ -73,7 +73,7 @@ class IPrintProtocol:
     SPEED_PRINT = [0x23]
     SPEED_BLANK = [0x19]
     QUALITY_STANDARD = [0x33]
-    ENERGY_MODERATE = [0x70, 0x44] # 17500 in little endian 16-bit
+    ENERGY_MODERATE = [0x70, 0x44] # 17520 in little endian 16-bit
 
     OPCODE_NAMES = {
         0xA0: "Retract Paper",
@@ -281,14 +281,14 @@ class IPrintProtocol:
         """
         Converts a 1-bit PIL image into the iPrint binary protocol sequence.
         density (1-10) scales the thermal head energy; the default 8 maps to
-        the known-good 17500 energy value.
+        the known-good 17520 energy value.
         """
         # Ensure correct format just in case
         if image.mode != "1":
             image = image.convert("1")
 
         density = max(cls.MIN_DENSITY, min(cls.MAX_DENSITY, int(density)))
-        energy = list(cls.ENERGY_MODERATE)  # 17500 little-endian
+        energy = list(cls.ENERGY_MODERATE)  # 17520 little-endian
         if density != cls.DEFAULT_DENSITY:
             energy_value = int(cls.DEFAULT_ENERGY * density / cls.DEFAULT_DENSITY)
             energy_value = max(0, min(0xFFFF, energy_value))
