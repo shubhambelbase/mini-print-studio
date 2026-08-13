@@ -17,6 +17,18 @@ class BLEPrinterAdapter(BasePrinterAdapter):
     """
     Bluetooth Low Energy (BLE) printer adapter using Bleak.
     """
+    # ── Timing & sizing constants ────────────────────────────────── #
+    BLE_CHUNK_SIZE = 180              # Max bytes per GATT write (iPrint / SC03h d1 profile)
+    BLE_CHUNK_DELAY_FAST = 0.01       # Inter-chunk pacing for normal payloads (seconds)
+    BLE_CHUNK_DELAY_SLOW = 0.025      # Inter-chunk pacing for large (>20 KB) payloads
+    BLE_BURST_SIZE = 4096             # Segment size for packet-aligned bursts
+    BLE_DRAIN_PAUSE = 0.6             # Pause between bursts so the thermal head can keep up
+    BLE_LARGE_PAYLOAD_THRESHOLD = 20_000  # Bytes; above this, use slower pacing / bursts
+    CONNECT_TIMEOUT_S = 20            # Hard cap on the entire connect sequence
+    SCAN_TIMEOUT_S = 3.0              # BLE discovery window
+    WATCHDOG_INTERVAL_S = 30.0        # Keep-alive ping period
+    WATCHDOG_PING_TIMEOUT_S = 10.0    # Timeout for a single keep-alive write
+
     KNOWN_WRITE_UUIDS = [
         "0000ae01-0000-1000-8000-00805f9b34fb",  # iPrint main (SC03h / FC02 / D1)
         "0000ae3b-0000-1000-8000-00805f9b34fb",  # iPrint alternate
@@ -97,7 +109,7 @@ class BLEPrinterAdapter(BasePrinterAdapter):
 
         devices_found = []
         try:
-            devices = await BleakScanner.discover(timeout=3.0)
+            devices = await BleakScanner.discover(timeout=cls.SCAN_TIMEOUT_S)
             for d in devices:
                 name = d.name or ""
                 # Real thermal printers always advertise a recognizable name
@@ -129,10 +141,10 @@ class BLEPrinterAdapter(BasePrinterAdapter):
         try:
             # Hard cap on the entire connect+discovery+notify sequence so the
             # UI never waits forever on an unreachable device.
-            await asyncio.wait_for(self._connect_and_discover(), timeout=20)
+            await asyncio.wait_for(self._connect_and_discover(), timeout=self.CONNECT_TIMEOUT_S)
             return self.connected
         except asyncio.TimeoutError:
-            logger.error(f"BLE connect to {self.address} timed out after 20s.")
+            logger.error(f"BLE connect to {self.address} timed out after {self.CONNECT_TIMEOUT_S}s.")
         except Exception as e:
             logger.error(f"Failed to connect to BLE printer {self.address}: {e}")
 
@@ -257,10 +269,12 @@ class BLEPrinterAdapter(BasePrinterAdapter):
             self._watchdog_task.cancel()
             self._watchdog_task = None
 
-    async def _watchdog_loop(self, interval: float = 30.0):
+    async def _watchdog_loop(self, interval: float = None):
         """Pings the printer with 0xA3 [0x00]. If the write fails the socket is
         stale: tear the link down so the app reports a clean disconnect."""
         from backend.protocols.iprint import IPrintProtocol
+        if interval is None:
+            interval = self.WATCHDOG_INTERVAL_S
         packet = IPrintProtocol.format_message(0xA3, [0x00])
         while True:
             await asyncio.sleep(interval)
@@ -271,7 +285,7 @@ class BLEPrinterAdapter(BasePrinterAdapter):
                 continue
             try:
                 await asyncio.wait_for(
-                    self.client.write_gatt_char(self.write_uuid, packet), timeout=10.0
+                    self.client.write_gatt_char(self.write_uuid, packet), timeout=self.WATCHDOG_PING_TIMEOUT_S
                 )
                 self._record_trace("W", packet)
             except asyncio.TimeoutError:
@@ -329,26 +343,25 @@ class BLEPrinterAdapter(BasePrinterAdapter):
             
         self.write_uuids.sort(key=uuid_priority)
 
-        # iPrint / SC03h (d1 profile) prefers 180 bytes chunk size
-        chunk_size = 180
+        chunk_size = self.BLE_CHUNK_SIZE
 
         # Long iPrint jobs: the SC03h firmware buffer is tiny and silently
         # drops the tail of long payloads. Send whole-packet bursts with a
         # drain pause between them so the thermal head can keep up.
-        if self.protocol == "iprint" and len(data) > 20000:
+        if self.protocol == "iprint" and len(data) > self.BLE_LARGE_PAYLOAD_THRESHOLD:
             from backend.protocols.iprint import IPrintProtocol
-            segments = IPrintProtocol.split_into_segments(data, segment_size=4096)
+            segments = IPrintProtocol.split_into_segments(data, segment_size=self.BLE_BURST_SIZE)
             for seg_index, segment in enumerate(segments):
-                await self._write_chunks(segment, chunk_size, chunk_delay=0.025)
+                await self._write_chunks(segment, chunk_size, chunk_delay=self.BLE_CHUNK_DELAY_SLOW)
                 if seg_index < len(segments) - 1:
-                    await asyncio.sleep(0.6)
+                    await asyncio.sleep(self.BLE_DRAIN_PAUSE)
             return True
 
         # Default path: pace chunks more conservatively for large payloads.
-        if len(data) > 20000:
-            chunk_delay = 0.025
+        if len(data) > self.BLE_LARGE_PAYLOAD_THRESHOLD:
+            chunk_delay = self.BLE_CHUNK_DELAY_SLOW
         else:
-            chunk_delay = 0.01
+            chunk_delay = self.BLE_CHUNK_DELAY_FAST
 
         # Try to write to the first working characteristic
         for char_uuid in self.write_uuids:

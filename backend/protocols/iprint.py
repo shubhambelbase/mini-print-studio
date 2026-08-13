@@ -1,4 +1,5 @@
 import struct
+from typing import Dict, List, Optional, Any
 from PIL import Image
 
 class IPrintProtocol:
@@ -32,7 +33,23 @@ class IPrintProtocol:
         0xfa, 0xfd, 0xf4, 0xf3
     )
 
-    # Commands
+    # ── Packet framing ──────────────────────────────────────────────── #
+    PACKET_MAGIC = bytes([0x51, 0x78])     # Every packet starts with this
+    PACKET_TERMINATOR = 0xFF               # Every packet ends with this
+    PACKET_HEADER_LEN = 6                  # Magic(2) + opcode(1) + flags(1) + length(2)
+    PACKET_OVERHEAD = 8                    # Header(6) + CRC(1) + terminator(1)
+
+    # ── Hardware limits ─────────────────────────────────────────────── #
+    PRINTER_WIDTH_PX = 384                 # SC03h printable width in dots
+    PRINTER_WIDTH_BYTES = 48               # 384 / 8 bytes per raster line
+    MAX_FEED_CHUNK = 100                   # Max dots per feed command (firmware signed-int safety)
+    DEFAULT_FEED_DOTS = 130                # Default tear-bar clearance in dots
+    DEFAULT_ENERGY = 17520                 # Default thermal head energy (density 8, 0x4470 LE)
+    MIN_DENSITY = 1
+    MAX_DENSITY = 10
+    DEFAULT_DENSITY = 8
+
+    # ── Commands ────────────────────────────────────────────────────── #
     CMD_RETRACT_PAPER = 0xA0
     CMD_FEED_PAPER = 0xA1
     CMD_DRAW_BITMAP = 0xA2
@@ -72,7 +89,7 @@ class IPrintProtocol:
     }
 
     @classmethod
-    def parse_stream(cls, data: bytes, start: int = 0, end: int = None) -> list:
+    def parse_stream(cls, data: bytes, start: int = 0, end: int | None = None) -> List[Dict[str, Any]]:
         """
         Parses a concatenated iPrint packet stream into a list of packet dicts:
         {offset, opcode, opcode_name, flags, length, crc_ok, payload_hex}.
@@ -132,6 +149,7 @@ class IPrintProtocol:
 
     @classmethod
     def crc8(cls, data: bytes) -> int:
+        """Computes CRC-8 (poly 0x07) over *data*."""
         crc = 0
         for byte in data:
             crc = cls.CRC8_TABLE[(crc ^ byte) & 0xFF]
@@ -144,17 +162,32 @@ class IPrintProtocol:
         Magic: 0x51, 0x78
         Command: 1 byte
         Zero: 0x00
-        Data length: 1 byte
-        Zero: 0x00
+        Data length: 2 bytes (little-endian)
         Data: Data Length bytes
         CRC8 of Data: 1 byte
         End: 0xFF
         """
-        packet = bytearray([0x51, 0x78, command, 0x00, len(data) & 0xFF, (len(data) >> 8) & 0xFF])
+        packet = bytearray(cls.PACKET_MAGIC)
+        packet.extend([command, 0x00, len(data) & 0xFF, (len(data) >> 8) & 0xFF])
         packet.extend(data)
         packet.append(cls.crc8(bytes(data)))
-        packet.append(0xFF)
+        packet.append(cls.PACKET_TERMINATOR)
         return bytes(packet)
+
+    @classmethod
+    def _build_feed_commands(cls, feed_dots: int) -> bytes:
+        """Builds one or more CMD_FEED_PAPER packets totalling *feed_dots* dots.
+
+        Chunks into MAX_FEED_CHUNK-dot packets to prevent firmware
+        signed-int overflows on the SC03h.
+        """
+        out = bytearray()
+        remaining = feed_dots
+        while remaining > 0:
+            chunk = min(remaining, cls.MAX_FEED_CHUNK)
+            out.extend(cls.format_message(cls.CMD_FEED_PAPER, cls.printer_short(chunk)))
+            remaining -= chunk
+        return bytes(out)
 
     @classmethod
     def build_gray_payload(
@@ -164,7 +197,8 @@ class IPrintProtocol:
         speed: int = 40,
         rows_per_chunk: int = 20,
         row_bytes: int = 192,
-        preheat_bytes: int = 3072
+        preheat_bytes: int = 3072,
+        feed_lines: int = 130
     ) -> bytes:
         """
         Builds the official-app grayscale job sequence:
@@ -173,6 +207,7 @@ class IPrintProtocol:
              20 rows each) separated by 0xBD speed packets.
         `gray_rows` is the raw 4-bit packed row data (192 bytes/row), exactly
         as produced by ImageProcessor.process_gray.
+        `feed_lines` is the trailing paper feed in dots for tear-bar clearance.
         """
         from backend.services.minilzo import compress as lzo_compress
 
@@ -200,10 +235,15 @@ class IPrintProtocol:
             compressed = lzo_compress(chunk)
             payload = bytes(cls.printer_short(len(chunk))) + bytes(cls.printer_short(len(compressed))) + compressed
             out.extend(cls.format_message(cls.CMD_GRAY_IMAGE_CHUNK, payload))
+
+        # Trailing paper feed for tear-bar clearance.
+        if feed_lines > 0:
+            out.extend(cls._build_feed_commands(feed_lines))
+
         return bytes(out)
 
     @classmethod
-    def split_into_segments(cls, payload: bytes, segment_size: int = 4096) -> list:
+    def split_into_segments(cls, payload: bytes, segment_size: int = 4096) -> List[bytes]:
         """
         Splits a payload at packet boundaries into whole-packet bursts.
         Each packet is: 6 header bytes + <len> data bytes + 1 crc + 1 terminator.
@@ -232,8 +272,9 @@ class IPrintProtocol:
         return segments
 
     @classmethod
-    def printer_short(cls, i: int) -> list:
-        return [i & 0xFF, (i >> 8) & 0xFF]
+    def printer_short(cls, value: int) -> List[int]:
+        """Encodes *value* as a 2-byte little-endian list."""
+        return [value & 0xFF, (value >> 8) & 0xFF]
 
     @classmethod
     def generate_payload(cls, image: Image.Image, feed_lines: int = 112, density: int = 8) -> bytes:
@@ -246,10 +287,10 @@ class IPrintProtocol:
         if image.mode != "1":
             image = image.convert("1")
 
-        density = max(1, min(10, int(density)))
-        energy = [0x70, 0x44]  # 17500 little endian
-        if density != 8:
-            energy_value = int(17500 * density / 8)
+        density = max(cls.MIN_DENSITY, min(cls.MAX_DENSITY, int(density)))
+        energy = list(cls.ENERGY_MODERATE)  # 17500 little-endian
+        if density != cls.DEFAULT_DENSITY:
+            energy_value = int(cls.DEFAULT_ENERGY * density / cls.DEFAULT_DENSITY)
             energy_value = max(0, min(0xFFFF, energy_value))
             energy = [energy_value & 0xFF, (energy_value >> 8) & 0xFF]
 
@@ -269,19 +310,19 @@ class IPrintProtocol:
         height_px = image.height
         
         # Note: GB01 / iPrint requires exactly 384 pixels width (48 bytes per line)
-        if width_px != 384:
-            if width_px > 384:
+        if width_px != cls.PRINTER_WIDTH_PX:
+            if width_px > cls.PRINTER_WIDTH_PX:
                 # A row wider than 384 dots would produce >48-byte 0xA2 rows
                 # (garbled output); center-crop to the printable width instead.
-                left = (width_px - 384) // 2
-                image = image.crop((left, 0, left + 384, height_px))
+                left = (width_px - cls.PRINTER_WIDTH_PX) // 2
+                image = image.crop((left, 0, left + cls.PRINTER_WIDTH_PX, height_px))
             else:
                 # Narrower images are centered on a white canvas.
-                pad_amount = (384 - width_px) // 2
-                padded = Image.new("1", (384, height_px), 1)
+                pad_amount = (cls.PRINTER_WIDTH_PX - width_px) // 2
+                padded = Image.new("1", (cls.PRINTER_WIDTH_PX, height_px), 1)
                 padded.paste(image, (pad_amount, 0))
                 image = padded
-            width_px = 384
+            width_px = cls.PRINTER_WIDTH_PX
 
         for y in range(height_px):
             line_bytes = bytearray()
@@ -308,10 +349,6 @@ class IPrintProtocol:
         
         # 4. Feed Paper
         if feed_lines > 0:
-            count = feed_lines
-            while count > 0:
-                feed = min(count, 100)  # Use 100 dot chunks to prevent firmware signed-int overflows
-                cmdqueue.extend(cls.format_message(cls.CMD_FEED_PAPER, cls.printer_short(feed)))
-                count -= feed
+            cmdqueue.extend(cls._build_feed_commands(feed_lines))
 
         return bytes(cmdqueue)

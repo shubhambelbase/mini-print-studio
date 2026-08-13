@@ -10,11 +10,13 @@ template_manager = TemplateManager()
 
 @router.get("", response_model=List[PrintTemplate])
 async def list_templates():
+    """Returns all print templates (built-in + user-created)."""
     return template_manager.get_all_templates()
 
 
 @router.post("/{template_id}/favorite", response_model=Dict[str, Any])
 async def set_template_favorite(template_id: str, payload: Dict[str, Any]):
+    """Toggles the favourite flag for a template in user preferences."""
     tpl = template_manager.get_template(template_id)
     if not tpl:
         raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found.")
@@ -34,6 +36,7 @@ async def set_template_favorite(template_id: str, payload: Dict[str, Any]):
 
 @router.get("/{template_id}", response_model=PrintTemplate)
 async def get_template(template_id: str):
+    """Retrieves a single template by ID."""
     tpl = template_manager.get_template(template_id)
     if not tpl:
         raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found.")
@@ -42,6 +45,7 @@ async def get_template(template_id: str):
 
 @router.post("", response_model=PrintTemplate)
 async def save_template(template: PrintTemplate):
+    """Creates or overwrites a custom (non-built-in) template."""
     success = template_manager.save_custom_template(template)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save custom template.")
@@ -50,6 +54,7 @@ async def save_template(template: PrintTemplate):
 
 @router.delete("/{template_id}")
 async def delete_template(template_id: str):
+    """Deletes a custom template. Built-in templates cannot be deleted."""
     tpl = template_manager.get_template(template_id)
     if not tpl:
         raise HTTPException(status_code=404, detail="Template not found.")

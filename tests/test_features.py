@@ -309,7 +309,7 @@ class TestDensityCalibration(unittest.TestCase):
         for pkt, density in zip(energies, [5, 7, 10]):
             raw = bytes.fromhex(pkt["payload_hex"])
             value = raw[0] | (raw[1] << 8)
-            expected = int(17500 * density / 8)
+            expected = int(IPrintProtocol.DEFAULT_ENERGY * density / IPrintProtocol.DEFAULT_DENSITY)
             self.assertEqual(value, expected, f"density {density}")
 
         # Label + image rows per strip (6 rows of 0xA2 per strip: label 28px

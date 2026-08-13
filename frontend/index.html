@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Local-first thermal printer studio — design, preview, and print receipts, labels, QR codes, and images over Bluetooth.">
   <title>Mini Print Studio — Thermal Printer Studio</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23171b21'/%3E%3Cpath d='M9 11h14v6H9zM11 9h10v2H11z' fill='none' stroke='%234f7df9' stroke-width='2'/%3E%3Cpath d='M9 20h14v3H9z' fill='%234f7df9'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/style.css">
@@ -19,7 +20,7 @@
       </div>
 
       <div class="header-status">
-        <div class="status-badge" id="headerStatusBadge">
+        <div class="status-badge" id="headerStatusBadge" aria-live="polite">
           <div class="status-dot" id="statusDot"></div>
           <span id="headerPrinterName">Disconnected</span>
         </div>
@@ -178,30 +179,31 @@
 
         <!-- Controls Bar -->
         <div class="preview-controls-bar">
-          <div class="form-group" style="flex: 1;">
+          <div class="form-group-dither">
             <label for="ditherSelect">Dithering Mode:</label>
             <select class="form-control" id="ditherSelect">
-              <option value="" selected>Default (use processing preset)</option>
-              <option value="floyd-steinberg">Floyd–Steinberg — smoothest gradients (photo default)</option>
-              <option value="atkinson">Atkinson — crisp dots, high detail</option>
-              <option value="stucki">Stucki — richer blacks, smoother tones</option>
-              <option value="bayer">Bayer — clean ordered pattern, manga/flat</option>
-              <option value="threshold">Threshold — for text, QR codes, line art</option>
+              <option value="" selected>Default</option>
+              <option value="floyd-steinberg" title="Floyd–Steinberg — smoothest gradients (photo default)">Floyd–Steinberg</option>
+              <option value="atkinson" title="Atkinson — crisp dots, high detail">Atkinson</option>
+              <option value="stucki" title="Stucki — richer blacks, smoother tones">Stucki</option>
+              <option value="bayer" title="Bayer — clean ordered pattern, manga/flat">Bayer</option>
+              <option value="threshold" title="Threshold — for text, QR codes, line art">Threshold</option>
             </select>
-            <span class="dither-hint" id="ditherHint"></span>
           </div>
-          <div class="form-group compact">
-            <label for="copiesInput">Copies:</label>
-            <input type="number" class="form-control" id="copiesInput" min="1" max="99" value="1">
-          </div>
-          <div class="form-group compact zoom-group">
-            <label for="zoomRange">Zoom:</label>
-            <input type="range" id="zoomRange" min="0.6" max="1.4" step="0.1" value="1.0">
-          </div>
-          <div class="form-group compact" title="Prints with TRUE 16-level grayscale (like the official iPrint app) instead of black/white dots. Best for photos.">
-            <label class="toggle-checkbox" style="justify-content: flex-start; white-space: nowrap;">
-              <input type="checkbox" id="grayPrintToggle"> True Grayscale
-            </label>
+          <div class="preview-controls-right">
+            <div class="form-group compact">
+              <label for="copiesInput">Copies:</label>
+              <input type="number" class="form-control" id="copiesInput" min="1" max="99" value="1">
+            </div>
+            <div class="form-group zoom-group">
+              <label for="zoomRange">Zoom:</label>
+              <input type="range" id="zoomRange" min="0.6" max="1.4" step="0.1" value="1.0">
+            </div>
+            <div class="form-group" title="Prints with TRUE 16-level grayscale (like the official iPrint app) instead of black/white dots. Best for photos.">
+              <label class="toggle-checkbox" style="justify-content: flex-start; white-space: nowrap;">
+                <input type="checkbox" id="grayPrintToggle"> True Grayscale
+              </label>
+            </div>
           </div>
         </div>
 
@@ -236,7 +238,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="layout"></i> Select Print Template</div>
-        <button class="btn-icon" id="btnCloseTemplatesModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseTemplatesModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="templates-filter-bar" id="templatesFilterBar">
@@ -254,7 +256,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="folder-open"></i> Saved Documents</div>
-        <button class="btn-icon" id="btnCloseDocumentsModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseDocumentsModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="history-list" id="documentsList">
@@ -271,7 +273,7 @@
         <div class="modal-title"><i data-lucide="history"></i> Print History</div>
         <div style="display: flex; gap: 8px;">
           <button class="btn-secondary" id="btnClearHistory" style="padding: 6px 12px; font-size: 0.8rem;">Clear All</button>
-          <button class="btn-icon" id="btnCloseHistoryModal"><i data-lucide="x"></i></button>
+          <button class="btn-icon" id="btnCloseHistoryModal" aria-label="Close"><i data-lucide="x"></i></button>
         </div>
       </div>
       <div class="modal-body">
@@ -289,7 +291,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="bluetooth"></i> Printer Device Manager</div>
-        <button class="btn-icon" id="btnCloseDevicesModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseDevicesModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -331,7 +333,7 @@
     <div class="modal-card connect-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="bluetooth"></i> PRINTER CONNECTION</div>
-        <button class="btn-icon" id="btnCloseConnectModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseConnectModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <!-- Connecting progress -->
@@ -378,7 +380,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="settings"></i> Application Settings</div>
-        <button class="btn-icon" id="btnCloseSettingsModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseSettingsModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="controls-grid">
@@ -416,7 +418,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="wifi"></i> WI-FI QR CARD</div>
-        <button class="btn-icon" id="btnCloseWifiModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseWifiModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="controls-grid">
@@ -449,7 +451,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="contact"></i> CONTACT QR CARD</div>
-        <button class="btn-icon" id="btnCloseContactModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseContactModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="controls-grid">
@@ -482,7 +484,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="file-spreadsheet"></i> CSV → LABELS</div>
-        <button class="btn-icon" id="btnCloseCsvModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseCsvModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -525,7 +527,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="clipboard-paste"></i> IMPORT TEXT</div>
-        <button class="btn-icon" id="btnCloseClipboardModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseClipboardModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -544,7 +546,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="crop"></i> CROP IMAGE</div>
-        <button class="btn-icon" id="btnCloseCropModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseCropModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="crop-canvas-wrap" id="cropCanvasWrap">
@@ -565,7 +567,7 @@
     <div class="modal-card compare-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="sliders-horizontal"></i> IMAGE PROCESSING COMPARE</div>
-        <button class="btn-icon" id="btnCloseCompareModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseCompareModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="compare-note" id="compareNote">Rendering comparison…</div>
@@ -596,7 +598,7 @@
     <div class="modal-card debug-card">
       <div class="modal-header">
         <div class="modal-title"><i data-lucide="bug"></i> PACKET INSPECTOR</div>
-        <button class="btn-icon" id="btnCloseDebugModal"><i data-lucide="x"></i></button>
+        <button class="btn-icon" id="btnCloseDebugModal" aria-label="Close"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="debug-summary" id="debugSummary"></div>

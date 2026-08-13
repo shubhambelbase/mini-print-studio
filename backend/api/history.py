@@ -9,11 +9,13 @@ router = APIRouter(prefix="/api/history", tags=["History"])
 
 @router.get("", response_model=List[Dict[str, Any]])
 async def get_history(manager: PrinterManager = Depends(get_printer_manager)):
+    """Returns the full print job history list."""
     return manager.get_job_history()
 
 
 @router.get("/stats", response_model=Dict[str, Any])
 async def get_history_stats(manager: PrinterManager = Depends(get_printer_manager)):
+    """Aggregated stats: totals by status, content-type breakdown, paper usage, and today's count."""
     history = manager.get_job_history()
     status_counts: Dict[str, int] = {}
     by_type: Dict[str, int] = {}
@@ -38,5 +40,6 @@ async def get_history_stats(manager: PrinterManager = Depends(get_printer_manage
 
 @router.delete("")
 async def clear_history(manager: PrinterManager = Depends(get_printer_manager)):
+    """Deletes all print job history records."""
     manager.clear_job_history()
     return {"status": "success", "message": "Print job history cleared."}

@@ -527,7 +527,8 @@ class PrintEngine:
                 # True 16-level grayscale (SC03h firmware): the app's math.
                 gray_rows = ImageProcessor.process_gray(image, target_width_px=width_px)
                 energy = int(4100 * (1 + 0.15 * (max(1, min(10, density)) - 4)))
-                return IPrintProtocol.build_gray_payload(gray_rows, energy=energy, speed=40)
+                actual_feed = (feed_dots if feed_dots is not None else 130) if feed_lines > 0 else 0
+                return IPrintProtocol.build_gray_payload(gray_rows, energy=energy, speed=40, feed_lines=actual_feed)
             # Cat Printers usually need extra feed lines to clear the tear bar.
             # 130 dots is a good balance between clearing the bar and saving
             # paper; the value is user-configurable via printer settings.

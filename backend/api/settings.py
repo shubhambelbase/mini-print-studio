@@ -12,6 +12,7 @@ SETTINGS_FILE = os.path.join(
 
 
 def read_settings() -> AppSettings:
+    """Loads settings from disk, returning defaults if the file is missing or corrupt."""
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
@@ -23,6 +24,7 @@ def read_settings() -> AppSettings:
 
 
 def save_settings(settings: AppSettings) -> bool:
+    """Persists settings to disk. Returns True on success."""
     try:
         os.makedirs(os.path.dirname(SETTINGS_FILE) or ".", exist_ok=True)
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -34,11 +36,13 @@ def save_settings(settings: AppSettings) -> bool:
 
 @router.get("", response_model=AppSettings)
 async def get_settings():
+    """Returns the current application settings."""
     return read_settings()
 
 
 @router.post("", response_model=AppSettings)
 async def update_settings(settings: AppSettings):
+    """Replaces the entire application settings object and persists to disk."""
     if not save_settings(settings):
         raise HTTPException(status_code=500, detail="Failed to save settings.")
     return settings
