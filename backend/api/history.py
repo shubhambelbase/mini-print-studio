@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from typing import List, Dict, Any
 from datetime import datetime
+import csv
+import io
 from backend.services.printer_manager import PrinterManager
 from backend.api.printers import get_printer_manager
 
@@ -43,3 +45,24 @@ async def clear_history(manager: PrinterManager = Depends(get_printer_manager)):
     """Deletes all print job history records."""
     manager.clear_job_history()
     return {"status": "success", "message": "Print job history cleared."}
+
+
+@router.get("/export")
+async def export_history(fmt: str = "csv", manager: PrinterManager = Depends(get_printer_manager)):
+    """Downloads history as CSV (default) for bookkeeping / paper audits."""
+    history = manager.get_job_history()
+    if fmt.lower() != "csv":
+        return history
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["id", "title", "timestamp", "status", "printer", "width_px", "height_px",
+                "est_paper_mm", "content_types", "error"])
+    for h in history:
+        w.writerow([
+            h.get("id", ""), h.get("title", ""), h.get("timestamp", ""), h.get("status", ""),
+            h.get("printer_name", ""), h.get("width_px", ""), h.get("height_px", ""),
+            round((h.get("height_px") or 0) / 8.0, 1),
+            ";".join(h.get("content_types") or []), h.get("error_message") or "",
+        ])
+    return Response(content=buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=print-history.csv"})

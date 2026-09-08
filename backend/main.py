@@ -13,8 +13,17 @@ from backend.api.printers import get_printer_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Reconnect to the last used printer in the background after startup.
-    reconnect_task = asyncio.create_task(get_printer_manager().auto_reconnect())
+    # Restore any crash-interrupted queue, then reconnect in the background.
+    async def _startup():
+        try:
+            restored = get_printer_manager().restore_pending_queue()
+            if restored:
+                import logging
+                logging.getLogger("MiniPrintStudio").info(f"Restored {restored} queued job(s).")
+        except Exception:
+            pass
+        await get_printer_manager().auto_reconnect()
+    reconnect_task = asyncio.create_task(_startup())
     yield
     reconnect_task.cancel()
 
@@ -65,4 +74,6 @@ async def serve_index():
 
 
 if __name__ == "__main__":
-    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)
+    import sys
+    _dev = "--reload" in sys.argv or os.environ.get("MPS_DEV", "").lower() in ("1", "true", "yes")
+    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=_dev)

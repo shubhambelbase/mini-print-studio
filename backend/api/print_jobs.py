@@ -18,6 +18,8 @@ router = APIRouter(prefix="/api/print", tags=["Print Jobs"])
 async def print_csv_labels(req: CSVLabelRequest, manager: PrinterManager = Depends(get_printer_manager)):
     """
     Parses CSV text and enqueues one barcode label job per row.
+    Supports index columns (legacy) or header-name columns, trims whitespace,
+    skips fully-empty rows, and caps the batch at max_labels.
     """
     if not manager.current_adapter or not manager.current_adapter.is_connected():
         raise HTTPException(status_code=503, detail="No printer connected. Please connect to a physical printer.")
@@ -29,17 +31,45 @@ async def print_csv_labels(req: CSVLabelRequest, manager: PrinterManager = Depen
     if not rows:
         raise HTTPException(status_code=400, detail="CSV is empty.")
 
-    start = 1 if (req.has_header and len(rows) > 0) else 0
+    # Resolve column indices: header names win over numeric indices.
+    name_col, sku_col, price_col = req.name_col, req.sku_col, req.price_col
+    start = 0
+    if req.has_header and rows:
+        header = [ (c or "").strip().lower() for c in rows[0] ]
+        def _by_name(want: Optional[str]) -> Optional[int]:
+            if not want:
+                return None
+            w = want.strip().lower()
+            return header.index(w) if w in header else None
+        _n, _s, _p = _by_name(req.name_header), _by_name(req.sku_header), _by_name(req.price_header)
+        if _n is not None:
+            name_col = _n
+        if _s is not None:
+            sku_col = _s
+        if _p is not None:
+            price_col = _p
+        # Auto-detect: if the first row looks like a header (any alpha cell),
+        # treat it as header even when indices are used.
+        start = 1
     data_rows = rows[start:]
+    # Drop trailing fully-empty rows (common with spreadsheet exports).
+    while data_rows and not any((c or "").strip() for c in data_rows[-1]):
+        data_rows.pop()
     if not data_rows:
         raise HTTPException(status_code=400, detail="CSV has no data rows after the header.")
+    if len(data_rows) > req.max_labels:
+        raise HTTPException(status_code=400, detail=f"CSV has {len(data_rows)} rows; cap is {req.max_labels} labels per request.")
+
+    barcode_type = (req.barcode_type or "code128").lower()
+    if barcode_type not in ("code128", "ean13", "ean8", "upca"):
+        raise HTTPException(status_code=400, detail=f"Unsupported barcode_type '{req.barcode_type}'.")
 
     job_ids: List[str] = []
     errors = []
     for i, row in enumerate(data_rows):
-        name = row[req.name_col] if req.name_col < len(row) else ""
-        sku = row[req.sku_col] if req.sku_col < len(row) else ""
-        price = row[req.price_col] if req.price_col < len(row) else ""
+        name = (row[name_col].strip() if name_col < len(row) and row[name_col] else "")
+        sku = (row[sku_col].strip() if sku_col < len(row) and row[sku_col] else "")
+        price = (row[price_col].strip() if price_col is not None and price_col >= 0 and price_col < len(row) and row[price_col] else "")
         if not (name or sku):
             errors.append(i + 1)
             continue
@@ -47,7 +77,7 @@ async def print_csv_labels(req: CSVLabelRequest, manager: PrinterManager = Depen
             ContentBlock(type="text", content=(name or "").upper(), font_size="large", align="center"),
         ]
         if sku:
-            blocks.append(ContentBlock(type="barcode", barcode_payload=sku, barcode_type="code128", barcode_height=55, show_barcode_text=True, align="center"))
+            blocks.append(ContentBlock(type="barcode", barcode_payload=sku, barcode_type=barcode_type, barcode_height=55, show_barcode_text=True, align="center"))
         if price:
             blocks.append(ContentBlock(type="text", content=f"PRICE: {price}", font_size="small", align="center"))
         blocks.append(ContentBlock(type="space", space_height=10))

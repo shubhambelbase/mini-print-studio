@@ -9,6 +9,7 @@ __pycache__/
 data/printers.json
 data/settings.json
 data/history.json
+data/queue.json
 data/documents/
 data/templates/
 

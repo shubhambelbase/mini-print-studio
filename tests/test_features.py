@@ -140,7 +140,9 @@ class TestSmartAutoLevel(unittest.TestCase):
 
     def _black_fraction(self, img):
         total = img.width * img.height
-        black = sum(1 for v in img.getdata() if v == 0)
+        pix = getattr(img, "get_flattened_data", None)
+        vals = list(pix()) if callable(pix) else list(img.getdata())
+        black = sum(1 for v in vals if v == 0)
         return black / total
 
     def test_wide_range_image_not_crushed(self):
@@ -173,7 +175,8 @@ class TestSmartAutoLevel(unittest.TestCase):
                             ImageProcessor.to_raster_bytes(without))
         # Stretched output must actually contain both black and white pixels
         # (the flat image was recovered into full tonal range).
-        colors = set(with_auto.getdata())
+        _flat = getattr(with_auto, "get_flattened_data", None)
+        colors = set(_flat()) if callable(_flat) else set(with_auto.getdata())
         self.assertTrue(0 in colors and (1 in colors or 255 in colors))
 
 

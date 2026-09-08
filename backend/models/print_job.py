@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 class ContentBlock(BaseModel):
-    type: str = Field(..., description="text, image, qr, barcode, line, space")
+    type: str = Field(..., description="text, image, qr, barcode, line|divider|separator|hr, space")
     
     # Text attributes
     content: Optional[str] = None
@@ -46,7 +46,7 @@ class ContentBlock(BaseModel):
     show_barcode_text: Optional[bool] = True
     
     # Line separator attributes
-    line_style: Optional[str] = Field("solid", description="solid, dashed, dotted, double")
+    line_style: Optional[str] = Field("solid", description="solid, thick|divider, dashed, dotted, double, wave")
     
     # Spacer attributes
     space_height: Optional[int] = Field(16, description="Spacer height in pixels")
@@ -132,6 +132,12 @@ class CSVLabelRequest(BaseModel):
     name_col: int = 0
     sku_col: int = 1
     price_col: int = 2
+    # Optional header-name overrides (case-insensitive); take precedence over indices.
+    name_header: Optional[str] = Field(None, description="Header name for the product-name column")
+    sku_header: Optional[str] = Field(None, description="Header name for the SKU/barcode column")
+    price_header: Optional[str] = Field(None, description="Header name for the price column")
+    barcode_type: str = Field("code128", description="code128, ean13, ean8, upca")
+    max_labels: int = Field(200, ge=1, le=500, description="Safety cap on labels per request")
     has_header: bool = True
     copies: int = Field(1, ge=1, le=99)
     title_prefix: str = "Label"

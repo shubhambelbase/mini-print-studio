@@ -31,6 +31,7 @@ class PrinterManager:
         self.data_dir = data_dir or os.environ.get("MPS_DATA_DIR", "data")
         self.printers_file = os.path.join(self.data_dir, "printers.json")
         self.history_file = os.path.join(self.data_dir, "history.json")
+        self.queue_file = os.path.join(self.data_dir, "queue.json")
 
         self.current_adapter: Optional[BasePrinterAdapter] = None
         self.active_printer_device: Optional[PrinterDevice] = None
@@ -217,6 +218,7 @@ class PrinterManager:
         self._queue.put_nowait((job.id, print_req.model_copy(deep=True)))
         self._ensure_worker()
         self._broadcast({"type": "job", "job_id": job.id, "status": "queued", "title": job.title})
+        self._save_pending_queue()
         return job
 
     def get_job_record(self, job_id: str) -> Optional[PrintJobRecord]:
@@ -257,6 +259,73 @@ class PrinterManager:
                 cancelled.append(tid)
         return cancelled
 
+    def _save_pending_queue(self):
+        """Crash-safe snapshot of queued (not yet started) block jobs to queue.json.
+
+        Raw-payload jobs (calibration) are skipped — their bytes are not
+        safely rebuildable after a restart and are marked interrupted instead.
+        """
+        try:
+            pending = []
+            for item in list(self._queue._queue):
+                job_id, print_req = item if isinstance(item, tuple) else (item, None)
+                job = self._job_records.get(job_id)
+                if job is None or print_req is None:
+                    continue
+                if getattr(print_req, "raw_payload", None):
+                    continue
+                try:
+                    pending.append({
+                        "job": job.model_dump(mode="json"),
+                        "request": print_req.model_dump(mode="json"),
+                    })
+                except Exception:
+                    continue
+            os.makedirs(self.data_dir, exist_ok=True)
+            with open(self.queue_file, "w", encoding="utf-8") as f:
+                json.dump(pending, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to persist print queue: {e}")
+
+    def restore_pending_queue(self) -> int:
+        """Re-enqueues jobs saved in queue.json (call after startup). Returns count."""
+        if not os.path.exists(self.queue_file):
+            return 0
+        try:
+            with open(self.queue_file, "r", encoding="utf-8") as f:
+                pending = json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load saved queue: {e}")
+            return 0
+        restored = 0
+        for entry in pending or []:
+            try:
+                job_d, req_d = entry.get("job", {}), entry.get("request", {})
+                if not job_d or not req_d:
+                    continue
+                job = PrintJobRecord(**job_d)
+                req = PrintRequest(**req_d)
+                if job.id in self._job_records:
+                    continue
+                job.status = "queued"
+                job.error_message = None
+                self._job_records[job.id] = job
+                self._queue.put_nowait((job.id, req))
+                restored += 1
+            except Exception:
+                continue
+        if restored:
+            self._ensure_worker()
+            self._broadcast({"type": "job", "job_id": "", "status": "queued",
+                             "title": f"Restored {restored} queued job(s)"})
+        # Clear the snapshot so a second restart does not double-queue.
+        try:
+            with open(self.queue_file, "w", encoding="utf-8") as f:
+                json.dump([], f)
+        except Exception:
+            pass
+        return restored
+
     async def _worker(self):
         """Processes queued jobs sequentially."""
         while True:
@@ -279,6 +348,7 @@ class PrinterManager:
             finally:
                 self.active_job_id = None
                 self._queue.task_done()
+                self._save_pending_queue()
 
     async def _process_job(self, job: PrintJobRecord, print_req: PrintRequest):
         if job.status == "cancelled":

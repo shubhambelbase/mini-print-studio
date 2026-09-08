@@ -55,9 +55,16 @@ class PrintEngine:
         total_height = margin_px * 2 + sum(img.height for img in rendered_sub_images)
         canvas = Image.new("L" if gray else "1", (target_width_px, total_height), 255 if gray else 1)
 
-        # Paste blocks sequentially
+        # Paste blocks sequentially (normalize to canvas mode for gray parity:
+        # 1-bit line/space/table blocks pasted onto an L canvas come out gray).
         current_y = margin_px
-        for sub_img in rendered_sub_images:
+        for _i, sub_img in enumerate(rendered_sub_images):
+            if gray and sub_img.mode != "L":
+                try:
+                    sub_img = sub_img.convert("L")
+                    rendered_sub_images[_i] = sub_img
+                except Exception:
+                    pass
             # Handle horizontal alignment within margins
             if sub_img.width < target_width_px:
                 x_offset = margin_px
@@ -85,7 +92,7 @@ class PrintEngine:
             return cls._render_qr_block(block, max_width_px)
         elif b_type == "barcode":
             return cls._render_barcode_block(block, max_width_px)
-        elif b_type == "line":
+        elif b_type in ("line", "divider", "separator", "hr"):
             return cls._render_line_block(block, max_width_px)
         elif b_type == "space":
             height = block.space_height or 16
@@ -115,6 +122,7 @@ class PrintEngine:
     @classmethod
     def get_font(cls, size_px: int, bold: bool = False, monospace: bool = False, italic: bool = False, family: str = "arial") -> Any:
         import os
+        import glob
         family = (family or "arial").lower()
         font_paths = []
         fam = cls.FONT_FAMILIES.get(family, cls.FONT_FAMILIES["arial"])
@@ -128,6 +136,7 @@ class PrintEngine:
         else:
             base = fam["base"]
 
+        # Windows first, then bare names (system fontconfig), then common Linux paths.
         font_paths.append(f"C:/Windows/Fonts/{base}.ttf")
         font_paths.append(f"{base}.ttf")
         if monospace:
@@ -138,17 +147,35 @@ class PrintEngine:
             font_paths.extend(["C:/Windows/Fonts/arialbd.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"])
         else:
             font_paths.extend(["C:/Windows/Fonts/arial.ttf", "arial.ttf", "DejaVuSans.ttf"])
+        # Linux distro fallbacks (Debian/Ubuntu/Fedora/Arch layouts).
+        font_paths.extend([
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        ])
 
         for path in font_paths:
-            if os.path.exists(path):
-                try:
+            try:
+                if os.path.exists(path) or "/" not in path:
                     return ImageFont.truetype(path, size_px)
-                except Exception:
-                    pass
-        try:
-            return ImageFont.truetype("arial.ttf", size_px)
-        except Exception:
-            return ImageFont.load_default()
+            except Exception:
+                continue
+        # Last resort: any DejaVu/Liberation/Noto on the system.
+        for pat in ("/usr/share/fonts/**/DejaVuSans*.ttf", "/usr/share/fonts/**/Liberation*.ttf",
+                    "/usr/share/fonts/**/NotoSans*.ttf"):
+            try:
+                for hit in sorted(glob.glob(pat, recursive=True)):
+                    try:
+                        return ImageFont.truetype(hit, size_px)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+        return ImageFont.load_default()
 
     @classmethod
     def _measure_text(cls, draw, text: str, font, letter_spacing: int = 0) -> int:
@@ -345,14 +372,17 @@ class PrintEngine:
 
     @classmethod
     def _render_line_block(cls, block: ContentBlock, max_width_px: int) -> Image.Image:
+        import math
         style = (block.line_style or "solid").lower()
-        height = 8
+        height = 12 if style in ("thick", "wave", "divider") else 8
         img = Image.new("1", (max_width_px, height), 1)
         draw = ImageDraw.Draw(img)
 
         y = height // 2
         if style == "solid":
             draw.line([(0, y), (max_width_px, y)], fill=0, width=1)
+        elif style == "thick" or style == "divider":
+            draw.line([(0, y), (max_width_px, y)], fill=0, width=3)
         elif style == "dashed":
             for x in range(0, max_width_px, 8):
                 draw.line([(x, y), (min(max_width_px, x + 4), y)], fill=0, width=1)
@@ -362,6 +392,15 @@ class PrintEngine:
         elif style == "double":
             draw.line([(0, y - 1), (max_width_px, y - 1)], fill=0, width=1)
             draw.line([(0, y + 1), (max_width_px, y + 1)], fill=0, width=1)
+        elif style == "wave":
+            prev = None
+            for x in range(max_width_px):
+                wy = y + int(round(2 * math.sin(x * 2 * math.pi / 24)))
+                if prev is not None:
+                    draw.line([prev, (x, wy)], fill=0, width=1)
+                prev = (x, wy)
+        else:  # unknown style falls back to solid
+            draw.line([(0, y), (max_width_px, y)], fill=0, width=1)
 
         setattr(img, "align", "center")
         return img

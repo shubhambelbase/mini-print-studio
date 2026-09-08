@@ -1,7 +1,15 @@
 import io
 import base64
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+
+
+def _pixel_values(img: Image.Image) -> list:
+    """Pillow-14-safe pixel access (getdata() was removed; prefer get_flattened_data)."""
+    get_flat = getattr(img, "get_flattened_data", None)
+    if callable(get_flat):
+        return list(get_flat())
+    return list(img.getdata())  # Pillow < 13 fallback
 
 
 class ImageProcessor:
@@ -641,7 +649,7 @@ class ImageProcessor:
         canvas = cls._prepare_canvas(image, target_width_px, "fit")
         gray = canvas.convert("L")
         w, h = gray.size
-        pix = list(gray.getdata())
+        pix = _pixel_values(gray)
 
         # Tone curve from the app (convertGreyImgByFloydPixels):
         # percentile clip at `low_threshold`/`high_threshold` (20% default —

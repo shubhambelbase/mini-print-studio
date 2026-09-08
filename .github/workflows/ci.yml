@@ -19,5 +19,9 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Byte-compile (catch syntax errors)
+        run: python -m compileall -q backend tests tools
       - name: Run test suite
         run: python -m unittest discover -s tests -q
+      - name: Smoking-import protocol + engine modules
+        run: python -c "from backend.protocols.iprint import IPrintProtocol; from backend.services.print_engine import PrintEngine; print(IPrintProtocol.energy_for_density(8), IPrintProtocol.feed_chunks(250))"

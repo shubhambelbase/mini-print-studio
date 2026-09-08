@@ -23,11 +23,18 @@ window.App = {
     // Bind event listeners
     this.bindEvents();
 
-    // Live job/printer events over SSE (fallback: 5s polling below)
+    // Live job/printer events over SSE; slow 30s poll is SSE-failure fallback only.
+    this._sseHealthy = false;
     this.initEventSource();
 
-    // Periodic printer status poller (every 5 seconds)
-    setInterval(() => this.checkPrinterStatus(), 5000);
+    // Fallback poller: every 30s, skipped while SSE is healthy.
+    setInterval(() => {
+      if (!this._sseHealthy) this.checkPrinterStatus();
+    }, 30000);
+  },
+
+  refreshIcons() {
+    try { if (window.lucide) window.lucide.createIcons(); } catch (_) { /* noop */ }
   },
 
   initEventSource() {
@@ -35,7 +42,9 @@ window.App = {
     try {
       const es = new EventSource("/api/events");
       this._eventSource = es;
+      es.onopen = () => { this._sseHealthy = true; };
       es.onmessage = (e) => {
+        this._sseHealthy = true;
         let evt = null;
         try { evt = JSON.parse(e.data); } catch (err) { return; }
         if (!evt) return;
@@ -57,6 +66,8 @@ window.App = {
       };
       es.onerror = () => {
         // EventSource auto-reconnects; fall back to polling in the meantime.
+        this._sseHealthy = false;
+        this.checkPrinterStatus();
       };
     } catch (err) {
       console.warn("SSE unavailable, falling back to polling:", err);
@@ -159,6 +170,7 @@ window.App = {
     if (prevPrinterId !== (window.ActivePrinter ? window.ActivePrinter.id : null)) {
       if (window.PreviewManager) window.PreviewManager.scheduleUpdate();
     }
+    this.refreshIcons();
   },
 
   bindEvents() {
@@ -1531,6 +1543,7 @@ window.App = {
         parts.push('<div style="color: var(--text-muted); font-size: 12px; padding: 6px 0;">Queue is idle — send your batch to start printing.</div>');
       }
       statusEl.innerHTML = parts.join("");
+      this.refreshIcons();
 
       if (this._batchJobs && this._batchJobs.length) {
         let done = 0;

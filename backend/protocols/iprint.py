@@ -81,12 +81,35 @@ class IPrintProtocol:
         0xA2: "Draw Bitmap",
         0xA3: "Get Device State",
         0xA4: "Set Quality",
-        0xA6: "Control Lattice",
+        0xA6: "Control Lattice (DO NOT SEND — crashes SC03h)",
         0xA8: "Get Device Info",
         0xAF: "Set Energy",
         0xBD: "Other Feed",
         0xBE: "Drawing Mode",
+        0xCF: "Grayscale Image Chunk (LZO)",
     }
+
+    @classmethod
+    def energy_for_density(cls, density: int) -> int:
+        """Linear energy scale from the 17520 baseline at density 8 (1..10)."""
+        d = max(cls.MIN_DENSITY, min(cls.MAX_DENSITY, int(density)))
+        return (cls.DEFAULT_ENERGY * d) // cls.DEFAULT_DENSITY
+
+    @classmethod
+    def energy_payload(cls, density: int) -> bytes:
+        """Little-endian 16-bit 0xAF payload for a density 1..10."""
+        return cls.energy_for_density(density).to_bytes(2, "little")
+
+    @classmethod
+    def feed_chunks(cls, total_dots: int) -> list[int]:
+        """Split a feed into ≤ MAX_FEED_CHUNK firmware-safe 0xA1 chunks."""
+        total = max(0, int(total_dots))
+        chunks: list[int] = []
+        while total > 0:
+            take = min(cls.MAX_FEED_CHUNK, total)
+            chunks.append(take)
+            total -= take
+        return chunks
 
     @classmethod
     def parse_stream(cls, data: bytes, start: int = 0, end: int | None = None) -> List[Dict[str, Any]]:

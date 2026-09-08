@@ -143,7 +143,7 @@ python -m backend.main
 python -m unittest discover -s tests -q
 ```
 
-All 30 tests must pass (protocol packet/CRC, image pipeline, block rendering, templates, REST API).
+All 81 tests must pass (protocol packet/CRC, image pipeline, block rendering, templates, REST API).
 
 ### 6. Installation troubleshooting
 
@@ -225,7 +225,7 @@ See [iPrint_SC03h_Protocol_Documentation.md](iPrint_SC03h_Protocol_Documentation
 python -m unittest discover -s tests -q
 ```
 
-30 tests cover the image pipeline, block rendering (incl. table/totals), protocol packet parsing + CRC validation, feed chunking, device-info parsing, SSE event flow, templates, and the REST API (via a persistent-loop ASGI client with an isolated `MPS_DATA_DIR`).
+81 tests cover the image pipeline, block rendering (incl. table/totals), protocol packet parsing + CRC validation, feed chunking, device-info parsing, SSE event flow, templates, and the REST API (via a persistent-loop ASGI client with an isolated `MPS_DATA_DIR`).
 
 ---
 
