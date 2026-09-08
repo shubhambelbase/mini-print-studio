@@ -1,5 +1,5 @@
 # Mini Print Studio — Agent Context
-Last updated: 2026-09-08. Status: all 81 tests green; queue/CSVs/fonts/SSE hardened.
+Last updated: 2026-09-08. Status: all 81 tests green; queue/CSVs/fonts/SSE hardened; BLE scan `cls`→`self` NameError fixed.
 
 ## What
 Local-first FastAPI + vanilla-JS app driving 58mm BLE thermal printers (SC03h iPrint + clones). No cloud/DB; JSON files in `data/`.

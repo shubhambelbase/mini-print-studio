@@ -109,7 +109,7 @@ class BLEPrinterAdapter(BasePrinterAdapter):
 
         devices_found = []
         try:
-            devices = await BleakScanner.discover(timeout=cls.SCAN_TIMEOUT_S)
+            devices = await BleakScanner.discover(timeout=self.SCAN_TIMEOUT_S)
             for d in devices:
                 name = d.name or ""
                 # Real thermal printers always advertise a recognizable name
