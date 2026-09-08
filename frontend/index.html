@@ -182,12 +182,9 @@
           <div class="form-group-dither">
             <label for="ditherSelect">Dithering Mode:</label>
             <select class="form-control" id="ditherSelect">
-              <option value="" selected>Default</option>
-              <option value="floyd-steinberg" title="Floyd–Steinberg — smoothest gradients (photo default)">Floyd–Steinberg</option>
-              <option value="atkinson" title="Atkinson — crisp dots, high detail">Atkinson</option>
-              <option value="stucki" title="Stucki — richer blacks, smoother tones">Stucki</option>
-              <option value="bayer" title="Bayer — clean ordered pattern, manga/flat">Bayer</option>
-              <option value="threshold" title="Threshold — for text, QR codes, line art">Threshold</option>
+              <option value="" selected>Default (auto per content)</option>
+              <option value="floyd-steinberg" title="Best for photos and smooth gradients">Photo — smooth</option>
+              <option value="threshold" title="Best for text, QR codes, barcodes and line art">Text — sharp</option>
             </select>
           </div>
           <div class="preview-controls-right">

@@ -291,7 +291,8 @@ window.EditorManager = {
     // processing preset in charge.
     const ditherSelect = document.getElementById("ditherSelect");
     if (ditherSelect) {
-      const selectedDither = ditherSelect.value || "";
+      const rawDither = ditherSelect.value || "";
+      const selectedDither = window.normalizeDither ? window.normalizeDither(rawDither) : rawDither;
       if (selectedDither) {
         cleanBlocks.forEach(b => {
           if (b.type === "image" && !b.dither_mode) b.dither_mode = selectedDither;

@@ -1,5 +1,5 @@
 # Mini Print Studio — Agent Context
-Last updated: 2026-09-08. Status: all 81 tests green; queue/CSVs/fonts/SSE hardened; BLE scan `cls`→`self` NameError fixed.
+Last updated: 2026-09-08. Status: all 81 tests green; queue/CSVs/fonts/SSE hardened; BLE scan `cls`→`self` fixed; dither UI simplified to Photo/Text.
 
 ## What
 Local-first FastAPI + vanilla-JS app driving 58mm BLE thermal printers (SC03h iPrint + clones). No cloud/DB; JSON files in `data/`.
@@ -24,6 +24,7 @@ Python 3.10–3.12, FastAPI/uvicorn/pydantic, Pillow/qrcode/python-barcode, Blea
 ## Conventions
 - 384-dot rows, 48B MSB-first; 180B chunks, 10ms (25ms >20KB), 4KB bursts + 600ms drain.
 - Blocks: text,image,qr,barcode,line|divider|separator|hr,space,table,totals. `line_style`: solid,thick|divider,dashed,dotted,double,wave.
+- Dither UI is 2 modes: Photo (`floyd-steinberg`) + Text (`threshold`); `normalizeDither()` in `api.js` maps legacy atkinson/stucki/bayer. Backend still accepts all 5.
 - CSV `/api/print/csv`: index cols or `*_header` names, `barcode_type`, `max_labels` (200).
 - History: `GET /api/history/export?fmt=csv`.
 

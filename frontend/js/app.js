@@ -778,10 +778,8 @@ window.App = {
       }
       if (variantsEl) {
         const tiles = [
-          ["floyd-steinberg", "Floyd–Steinberg (smooth)"],
-          ["atkinson", "Atkinson (crisp)"],
-          ["bayer", "Bayer (ordered)"],
-          ["threshold", "Threshold (hard)"],
+          ["floyd-steinberg", "Photo — smooth"],
+          ["threshold", "Text — sharp"],
         ];
         variantsEl.innerHTML = tiles.map(([algo, label]) => `
           <div class="compare-tile">

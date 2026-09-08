@@ -11,12 +11,13 @@ window.PreviewManager = {
   debounceTimer: null,
 
   DITHER_TIPS: {
-    "": "Using each image block's processing preset (Photo → Floyd–Steinberg, Manga → Bayer, Text/QR → Threshold)",
-    "atkinson": "Use for: high-detail photos, sketches",
-    "floyd-steinberg": "Use for: photos, smooth gradients (photo default)",
-    "stucki": "Use for: smooth gradients with richer blacks",
-    "bayer": "Use for: manga, logos, icons, flat graphics",
-    "threshold": "Use for: text, QR codes, barcodes, line art",
+    "": "Auto: each image uses its preset (photos → smooth, text/QR → sharp)",
+    "floyd-steinberg": "Photo: smooth gradients, best for photos",
+    "threshold": "Text: sharp black-and-white, best for text, QR codes and line art",
+    // Legacy algorithm names (pre-simplification UI) map to the nearest mode.
+    "atkinson": "Photo: smooth gradients, best for photos",
+    "stucki": "Photo: smooth gradients, best for photos",
+    "bayer": "Text: sharp black-and-white, best for text, QR codes and line art",
   },
 
   init() {
