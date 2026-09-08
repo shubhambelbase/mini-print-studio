@@ -52,7 +52,7 @@ async def compare_image_pipeline(req: ImageProcessRequest):
       grayscale → tone-mapped 'L' image (what the dither sees)
       final     → the exact 1-bit bitmap sent to the printer
       variants  → the same tone-mapped image dithered with every algorithm
-                  (floyd-steinberg, atkinson, bayer, threshold)
+                  (floyd-steinberg, atkinson, hybrid, bayer, threshold)
 
     Lets the user judge which algorithm suits their printer + paper, and
     confirms the on-screen preview matches the actual raster output.

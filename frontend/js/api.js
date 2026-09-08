@@ -186,15 +186,15 @@ const API = {
 
 /**
  * Maps any dither value (current or legacy) onto the two user-facing modes:
- *   "floyd-steinberg" (Photo — smooth) or "threshold" (Text — sharp).
+ *   "hybrid" (Photo — Bayer + Threshold blend) or "threshold" (Text — sharp).
  * "" / null (Default/auto) pass through untouched. Unknown values fall back
  * to Default so a stale value can never break a print.
  */
 window.normalizeDither = function (mode) {
   if (mode === null || mode === undefined || mode === "") return mode === undefined ? null : mode;
   const key = String(mode).trim().toLowerCase();
-  if (key === "floyd-steinberg" || key === "floyd" || key === "atkinson" || key === "stucki" || key === "photo") {
-    return "floyd-steinberg";
+  if (key === "hybrid" || key === "photo" || key === "floyd-steinberg" || key === "floyd" || key === "atkinson" || key === "stucki") {
+    return "hybrid";
   }
   if (key === "threshold" || key === "bayer" || key === "text") {
     return "threshold";

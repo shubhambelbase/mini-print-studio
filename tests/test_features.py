@@ -190,17 +190,17 @@ class TestProcessingPresets(unittest.TestCase):
                 px[x, y] = 40 + (x * 180) // 200
         return img.convert("RGB")
 
-    def test_photo_preset_uses_floyd_steinberg(self):
+    def test_photo_preset_uses_hybrid(self):
         stages = ImageProcessor.prepare_grayscale(
             self._make_gradient(), processing_preset="photo"
         )
-        self.assertEqual(stages["dither"], "floyd-steinberg")
+        self.assertEqual(stages["dither"], "hybrid")
 
     def test_preset_unknown_falls_back_to_photo(self):
         stages = ImageProcessor.prepare_grayscale(
             self._make_gradient(), processing_preset="not-a-preset"
         )
-        self.assertEqual(stages["dither"], "floyd-steinberg")
+        self.assertEqual(stages["dither"], "hybrid")
 
     def test_sharp_presets_use_threshold(self):
         for preset in ("line_art", "text", "qr"):
@@ -226,7 +226,7 @@ class TestProcessingPresets(unittest.TestCase):
         """All algorithms accept the same grayscale and yield 1-bit output."""
         img = self._make_gradient()
         gray = ImageProcessor.prepare_grayscale(img, processing_preset="photo")["grayscale"]
-        for algo in ("atkinson", "floyd-steinberg", "stucki", "bayer", "threshold"):
+        for algo in ("atkinson", "floyd-steinberg", "stucki", "bayer", "threshold", "hybrid"):
             out = ImageProcessor.dither_image(gray, algo)
             self.assertEqual(out.mode, "1", algo)
             self.assertEqual(out.width, 384, algo)
@@ -234,6 +234,30 @@ class TestProcessingPresets(unittest.TestCase):
         outs = [ImageProcessor.to_raster_bytes(ImageProcessor.dither_image(gray, a))
                 for a in ("atkinson", "floyd-steinberg", "bayer")]
         self.assertTrue(len(set(outs)) >= 2)
+
+    def test_hybrid_blends_bayer_and_threshold(self):
+        """Hybrid output is distinct from both parents and sits between them."""
+        img = self._make_gradient()
+        gray = ImageProcessor.prepare_grayscale(img, processing_preset="photo")["grayscale"]
+        to_bytes = ImageProcessor.to_raster_bytes
+        hybrid = to_bytes(ImageProcessor.dither_image(gray, "hybrid"))
+        bayer = to_bytes(ImageProcessor.dither_image(gray, "bayer"))
+        thresh = to_bytes(ImageProcessor.dither_image(gray, "threshold"))
+        self.assertNotEqual(hybrid, bayer)
+        self.assertNotEqual(hybrid, thresh)
+        # Black-pixel fraction must lie strictly between the parents.
+        def black_frac(raw: bytes) -> float:
+            total_bits = len(raw) * 8
+            black = sum(bin(b).count("1") for b in raw)
+            return black / total_bits
+        lo, hi = sorted((black_frac(bayer), black_frac(thresh)))
+        self.assertGreater(black_frac(hybrid), lo)
+        self.assertLess(black_frac(hybrid), hi)
+        # Strength extremes reproduce the parents exactly.
+        self.assertEqual(
+            to_bytes(ImageProcessor._apply_hybrid_dithering(gray, strength=0.0)), thresh)
+        self.assertEqual(
+            to_bytes(ImageProcessor._apply_hybrid_dithering(gray, strength=1.0)), bayer)
 
     def test_photo_never_sharpens_by_default(self):
         img = self._make_gradient()

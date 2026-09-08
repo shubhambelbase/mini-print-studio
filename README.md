@@ -13,7 +13,7 @@ Local-first web application for controlling a Bluetooth mini thermal printer fro
 ### Printing
 - Block-based editor: text, images, QR codes, barcodes, separators, spacers
 - **Receipt designer**: structured `table` and `totals` blocks (item rows, dotted-leader subtotal/TOTAL lines)
-- Thermal image pipeline: auto-level, brightness/contrast/sharpen, two dithering modes — **Photo** (smooth) and **Text** (sharp)
+- Thermal image pipeline: auto-level, brightness/contrast/sharpen, two dithering modes — **Photo** (Bayer + Threshold hybrid: even dot texture, hard contrast) and **Text** (sharp cutoff)
 - Live thermal preview (384 px, 1-bit), PNG/PDF export
 - Print queue with queued → preparing → printing → completed/failed/cancelled states
 - Multi-copy printing; per-copy wake+init (protocol §6.1); cancel between copies

@@ -24,7 +24,8 @@ Python 3.10–3.12, FastAPI/uvicorn/pydantic, Pillow/qrcode/python-barcode, Blea
 ## Conventions
 - 384-dot rows, 48B MSB-first; 180B chunks, 10ms (25ms >20KB), 4KB bursts + 600ms drain.
 - Blocks: text,image,qr,barcode,line|divider|separator|hr,space,table,totals. `line_style`: solid,thick|divider,dashed,dotted,double,wave.
-- Dither UI is 2 modes: Photo (`floyd-steinberg`) + Text (`threshold`); `normalizeDither()` in `api.js` maps legacy atkinson/stucki/bayer. Backend still accepts all 5.
+- Dither UI is 2 modes: Photo (`hybrid`: Bayer×Threshold blend, s=0.5) + Text (`threshold`); `normalizeDither()` in `api.js` maps legacy floyd/atkinson/stucki→hybrid, bayer→threshold. Backend accepts all 6; `photo` preset uses hybrid.
+- Photo mode auto-checks True Grayscale (`PreviewManager.syncGrayscaleToggle()`); Text/Default uncheck it. Toggle stays manually overridable; `getPrintRequest()` reads it live.
 - CSV `/api/print/csv`: index cols or `*_header` names, `barcode_type`, `max_labels` (200).
 - History: `GET /api/history/export?fmt=csv`.
 

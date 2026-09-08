@@ -778,7 +778,7 @@ window.App = {
       }
       if (variantsEl) {
         const tiles = [
-          ["floyd-steinberg", "Photo — smooth"],
+          ["hybrid", "Photo — smooth hybrid"],
           ["threshold", "Text — sharp"],
         ];
         variantsEl.innerHTML = tiles.map(([algo, label]) => `

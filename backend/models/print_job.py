@@ -22,7 +22,7 @@ class ContentBlock(BaseModel):
     
     # Image attributes
     image_data: Optional[str] = Field(None, description="Base64 encoded string or URL")
-    dither_mode: Optional[str] = Field("atkinson", description="Photo (floyd-steinberg) or Text (threshold); legacy atkinson, stucki, bayer still accepted")
+    dither_mode: Optional[str] = Field("atkinson", description="Photo (hybrid Bayer+Threshold blend) or Text (threshold); legacy floyd-steinberg, atkinson, stucki, bayer still accepted")
     brightness: Optional[float] = 1.0
     contrast: Optional[float] = 1.0
     sharpen: Optional[float] = 1.0

@@ -74,7 +74,7 @@ class ImageProcessor:
         # Photo — Natural (default for photographic content)
         "photo": {
             "label": "Photo — Natural",
-            "dither": "floyd-steinberg",   # serpentine FS: smoothest gradients
+            "dither": "hybrid",            # Bayer+Threshold blend: even texture, hard snap
             "gamma": 1.0,                   # no tone shift by default
             "brightness": 1.0,
             "contrast": 1.0,
@@ -139,7 +139,12 @@ class ImageProcessor:
         },
     }
 
-    DIFFUSION_DITHERS = ("atkinson", "floyd-steinberg", "floyd", "stucki")
+    DIFFUSION_DITHERS = ("atkinson", "floyd-steinberg", "floyd", "stucki", "hybrid", "photo")
+
+    # Hybrid Photo mode: interpolation factor between fixed-threshold (0.0)
+    # and pure Bayer ordered dithering (1.0). 0.5 weights both parents
+    # equally: Bayer's even dot texture with Threshold's hard contrast snap.
+    HYBRID_STRENGTH = 0.5
 
     @classmethod
     def _resolve_preset(cls, processing_preset: Optional[str]) -> dict:
@@ -398,6 +403,8 @@ class ImageProcessor:
             return cls._apply_stucki_dithering(grayscale_img)
         if key in ("bayer", "ordered"):
             return cls._apply_bayer_dithering(grayscale_img)
+        if key in ("hybrid", "photo"):
+            return cls._apply_hybrid_dithering(grayscale_img)
         # threshold (default for text/QR/line art)
         return grayscale_img.point(lambda p: 255 if p > 128 else 0, mode="1")
 
@@ -536,6 +543,39 @@ class ImageProcessor:
 
         return output_img
 
+    @classmethod
+    def _apply_hybrid_dithering(cls, grayscale_img: Image.Image, strength: float = None) -> Image.Image:
+        """
+        Hybrid Photo mode: Bayer ordered dithering blended with a fixed
+        threshold. Each pixel's cutoff is interpolated between 128
+        (pure Threshold) and its Bayer cell value (pure Bayer)::
+
+            cutoff = (1 - s) * 128 + s * bayer_val
+
+        At the default ``HYBRID_STRENGTH`` (0.5) the output keeps Bayer's
+        even, intentional dot texture while snapping contrast like
+        Threshold — no error-diffusion grain, no washed midtones.
+        Deterministic and as fast as Bayer (single pass, no error buffers).
+        """
+        s = cls.HYBRID_STRENGTH if strength is None else max(0.0, min(1.0, strength))
+        width, height = grayscale_img.size
+        pixels = grayscale_img.load()
+        output_img = Image.new("1", (width, height))
+        out_pixels = output_img.load()
+
+        matrix = cls.BAYER_MATRIX
+        m_size = cls.BAYER_SIZE
+        factor = 256.0 / (m_size * m_size + 1)
+        base = (1.0 - s) * 128.0
+
+        for y in range(height):
+            row = matrix[y % m_size]
+            for x in range(width):
+                cutoff = base + s * row[x % m_size] * factor
+                out_pixels[x, y] = 255 if pixels[x, y] > cutoff else 0
+
+        return output_img
+
     # ── Public pipeline entry points ───────────────────────────────────
 
     @classmethod
@@ -617,7 +657,7 @@ class ImageProcessor:
         )
         gray = stages["grayscale"]
         variants = {}
-        for algo in ("floyd-steinberg", "atkinson", "bayer", "threshold"):
+        for algo in ("floyd-steinberg", "atkinson", "hybrid", "bayer", "threshold"):
             variants[algo] = cls.dither_image(gray, algo)
         return {
             "original": stages["original"],

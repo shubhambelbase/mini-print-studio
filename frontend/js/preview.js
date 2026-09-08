@@ -11,12 +11,13 @@ window.PreviewManager = {
   debounceTimer: null,
 
   DITHER_TIPS: {
-    "": "Auto: each image uses its preset (photos → smooth, text/QR → sharp)",
-    "floyd-steinberg": "Photo: smooth gradients, best for photos",
+    "": "Auto: each image uses its preset (photos → smooth hybrid, text/QR → sharp)",
+    "hybrid": "Photo: Bayer + Threshold blend — turns on True Grayscale automatically",
     "threshold": "Text: sharp black-and-white, best for text, QR codes and line art",
     // Legacy algorithm names (pre-simplification UI) map to the nearest mode.
-    "atkinson": "Photo: smooth gradients, best for photos",
-    "stucki": "Photo: smooth gradients, best for photos",
+    "floyd-steinberg": "Photo: Bayer + Threshold blend — turns on True Grayscale automatically",
+    "atkinson": "Photo: Bayer + Threshold blend — turns on True Grayscale automatically",
+    "stucki": "Photo: Bayer + Threshold blend — turns on True Grayscale automatically",
     "bayer": "Text: sharp black-and-white, best for text, QR codes and line art",
   },
 
@@ -30,9 +31,11 @@ window.PreviewManager = {
 
     if (this.ditherSelect) {
       this.ditherSelect.addEventListener("change", () => {
+        this.syncGrayscaleToggle();
         this.updateDitherHint();
         this.updatePreview();
       });
+      this.syncGrayscaleToggle();
       this.updateDitherHint();
     }
 
@@ -44,6 +47,21 @@ window.PreviewManager = {
         }
       });
     }
+  },
+
+  /**
+   * Photo mode prints best with the printer's real 16-level grayscale
+   * (per-dot heat instead of black/white dither dots), so selecting it
+   * turns the True Grayscale toggle on; Text/Default turn it back off.
+   * The toggle stays manually overridable at any time — preview, print
+   * and export all read it live via EditorManager.getPrintRequest().
+   */
+  syncGrayscaleToggle() {
+    if (!this.ditherSelect) return;
+    const raw = this.ditherSelect.value || "";
+    const mode = window.normalizeDither ? window.normalizeDither(raw) : raw;
+    const grayToggle = document.getElementById("grayPrintToggle");
+    if (grayToggle) grayToggle.checked = (mode === "hybrid");
   },
 
   updateDitherHint() {
